@@ -2,9 +2,9 @@
 
 **Phase 10.1.5：Windows CI / NSIS**
 
-在阶段九 Tauri 桌面上新增 Rust LCU 发现、只读 HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event 和浏览器 Mock/Tauri 真实来源隔离。macOS 明确返回 `unsupported_platform`，不伪造真实客户端；Windows 条件代码尚未实机验证。
+在阶段九 Tauri 桌面上新增 Rust LCU 发现、只读 HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event 和浏览器 Mock/Tauri 真实来源隔离。macOS 明确返回 `unsupported_platform`，不伪造真实客户端；Windows CI 已通过编译、27 Rust 测试和 NSIS 构建，真实 Windows 桌面/LCU 仍未验收。
 
-Windows CI 已通过：82 前端测试、27 Rust 测试、Windows MSVC 编译与 NSIS Artifact 均成功；真实 Windows 10/11 桌面和真实 LCU 仍待验收。原有浏览器视觉、i18n 和 75 测试基线保持，当前达到 **82 个前端测试 / 106 个构建模块 / 27 个 Rust 测试**。详见 [阶段 10.1 实施记录](docs/PHASE10_1_LCU_FOUNDATION.md)、[阶段九实施记录](docs/PHASE9_TAURI_INTEGRATION.md) 与 [i18n 实施记录](docs/ZH_CN_I18N_MIGRATION.md)。
+Windows CI 已通过：82 前端测试、27 Rust 测试、Windows MSVC 编译与 NSIS Artifact 均成功；真实 Windows 10/11 桌面和真实 LCU 仍待验收。原有浏览器视觉、i18n 和 75 测试基线保持，当前达到 **82 个前端测试 / 106 个构建模块 / 27 个 Rust 测试**。详见 [阶段 10.1.5 CI 记录](docs/PHASE10_1_5_WINDOWS_CI.md)、[阶段 10.1 实施记录](docs/PHASE10_1_LCU_FOUNDATION.md)、[阶段九实施记录](docs/PHASE9_TAURI_INTEGRATION.md) 与 [i18n 实施记录](docs/ZH_CN_I18N_MIGRATION.md)。
 
 当前结算数据是一份标注为 `isSharedFixture` 的静态示例，不冒充七场历史战绩各自的真实结算；`selectedMatchId` 仅保留导航上下文。设置页三个开关为内存演示状态，不接入操作系统、LCU 或真实音效。
 

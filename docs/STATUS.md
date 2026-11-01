@@ -7,6 +7,7 @@
 阶段 10.1.5 说明：[PHASE10_1_5_WINDOWS_CI.md](PHASE10_1_5_WINDOWS_CI.md)。
 
 阶段 10.1 说明：[PHASE10_1_LCU_FOUNDATION.md](PHASE10_1_LCU_FOUNDATION.md)。
+
 阶段九基线提交：`d85bb44 chore: establish phase 9 Tauri baseline`。
 
 ## 环境
