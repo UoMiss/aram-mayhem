@@ -6,6 +6,8 @@ use crate::lcu::gameflow::{
     ChampionSelectSnapshot, GameSessionContext, GameflowChanges, GameflowMachine, GameflowPhase,
     GameflowReading, GameflowSnapshot, GameflowTransport, LobbySnapshot,
 };
+#[cfg(windows)]
+use crate::lcu::gameflow_events::GameflowEventSource;
 use crate::lcu::gameflow_events::LcuWebSocketEventSource;
 use crate::lcu::lobby::parse_lobby;
 use crate::lcu::models::LcuSourceKind;
