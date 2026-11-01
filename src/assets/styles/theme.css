@@ -1,0 +1,201 @@
+/* 设计变量提取自 references/deepseek.original.html；迁移期间不得改动原始视觉基准。 */
+:root,
+.dark {
+  color-scheme: dark;
+  --background: #090a10;
+  --foreground: #f1f5f9;
+  --card: #171526;
+  --card-foreground: #f1f5f9;
+  --popover: #171526;
+  --popover-foreground: #f1f5f9;
+  --primary: #a855f7;
+  --primary-foreground: #ffffff;
+  --secondary: #1e1338;
+  --secondary-foreground: #f1f5f9;
+  --muted: #151325;
+  --muted-foreground: #94a3b8;
+  --accent: #1e1338;
+  --accent-foreground: #f1f5f9;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: #a855f7;
+  --radius: 0.75rem;
+
+  /* ARAM: Mayhem 主题色 —— 紫 / 青 / 玫瑰 */
+  --aram-purple: #a855f7;
+  --aram-cyan: #22d3ee;
+  --aram-rose: #f43f5e;
+  --app-font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --app-background-gradient: radial-gradient(
+    circle at 50% 0%,
+    #1e1338 0%,
+    #0c0b14 60%,
+    #06050a 100%
+  );
+  --glass-background: rgba(23, 21, 38, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-aram-purple: var(--aram-purple);
+  --color-aram-cyan: var(--aram-cyan);
+  --color-aram-rose: var(--aram-rose);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+/*
+ * 原版中 Tailwind 工具类可覆盖玻璃卡片背景/边框（如顶栏 bg-slate-950/80）。
+ * 因此自定义组件样式必须放在 components 层，不能写成未分层 CSS。
+ */
+@layer base {
+  * {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body,
+  #app {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+
+  html,
+  body {
+    background-color: #090a10;
+  }
+
+  body {
+    color: var(--foreground);
+    font-family: var(--app-font-sans);
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+@layer components {
+  /* 原版应用视口：480px 居中窄窗、径向暗色背景与安全区。 */
+  .app-viewport {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 480px;
+    height: 100%;
+    margin: 0 auto;
+    background: var(--app-background-gradient);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .glass-card {
+    background: var(--glass-background);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+  }
+
+  .nav-glow {
+    box-shadow:
+      0 -4px 20px rgba(0, 0, 0, 0.6),
+      0 -1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .active-tab {
+    color: #a855f7;
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* 截图专用纯色背景 */
+  .screenshot-mode {
+    background-color: #171526 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  #screenshot-area {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 阵营标签 */
+  .badge-red {
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(244, 63, 94, 0.1));
+    color: #fda4af;
+    border: 1px solid rgba(244, 63, 94, 0.3);
+  }
+  .badge-blue {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(6, 182, 212, 0.1));
+    color: #67e8f9;
+    border: 1px solid rgba(6, 182, 212, 0.3);
+  }
+
+  /* 结算页玩家排名 */
+  .player-rank {
+    font-family: 'Arial Black', Impact, sans-serif;
+    font-size: 13px;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    text-align: center;
+    margin-top: 10px;
+  }
+  .rank-1 {
+    color: #fbbf24;
+    text-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+  }
+  .rank-2 {
+    color: #94a3b8;
+  }
+  .rank-3 {
+    color: #f97316;
+  }
+  .rank-4,
+  .rank-5,
+  .rank-6 {
+    color: #64748b;
+  }
+
+  .stat-bar-bg {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    width: 100%;
+    overflow: hidden;
+    margin-top: 3px;
+  }
+  .stat-bar {
+    height: 100%;
+    border-radius: 2px;
+  }
+}

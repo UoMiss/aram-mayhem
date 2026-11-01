@@ -1,0 +1,245 @@
+{
+  "connection": [
+    {
+      "width": 320,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 375,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 390,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 430,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 480,
+      "mean": 0.0,
+      "changed": 0
+    }
+  ],
+  "home": [
+    {
+      "width": 320,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 375,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 390,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 430,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 480,
+      "mean": 0.0,
+      "changed": 0
+    }
+  ],
+  "history": [
+    {
+      "width": 320,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 375,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 390,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 430,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 480,
+      "mean": 0.0,
+      "changed": 0
+    }
+  ],
+  "detail-group": [
+    {
+      "width": 320,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 375,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 390,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 430,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 480,
+      "mean": 0.0,
+      "changed": 0
+    }
+  ],
+  "detail-global": [
+    {
+      "width": 320,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 375,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 390,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 430,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 480,
+      "mean": 0.0,
+      "changed": 0
+    }
+  ],
+  "tools": [
+    {
+      "width": 320,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 375,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 390,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 430,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 480,
+      "mean": 0.0,
+      "changed": 0
+    }
+  ],
+  "drawer-initial": [
+    {
+      "width": 320,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 375,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 390,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 430,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 480,
+      "mean": 0.0,
+      "changed": 0
+    }
+  ],
+  "drawer-final": [
+    {
+      "width": 320,
+      "mean": 3.0372,
+      "changed": 5219
+    },
+    {
+      "width": 375,
+      "mean": 1.502,
+      "changed": 4296
+    },
+    {
+      "width": 390,
+      "mean": 1.3338,
+      "changed": 4274
+    },
+    {
+      "width": 430,
+      "mean": 1.4471,
+      "changed": 5297
+    },
+    {
+      "width": 480,
+      "mean": 1.1207,
+      "changed": 4696
+    }
+  ],
+  "settings": [
+    {
+      "width": 320,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 375,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 390,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 430,
+      "mean": 0.0,
+      "changed": 0
+    },
+    {
+      "width": 480,
+      "mean": 0.0,
+      "changed": 0
+    }
+  ]
+}

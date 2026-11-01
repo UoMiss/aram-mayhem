@@ -1,0 +1,190 @@
+/* 原版 CSS 动效与弹层过渡，全部保留自 references/deepseek.original.html。 */
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+.animate-glow {
+  animation: pulse-glow 2.5s infinite ease-in-out;
+}
+
+@keyframes dot-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+    opacity: 0.3;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.dot1 {
+  animation: dot-bounce 1.4s infinite ease-in-out 0s;
+}
+.dot2 {
+  animation: dot-bounce 1.4s infinite ease-in-out 0.2s;
+}
+.dot3 {
+  animation: dot-bounce 1.4s infinite ease-in-out 0.4s;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+.terminal-cursor {
+  animation: blink 1s infinite;
+}
+
+/* 底部抽屉：用于阶段 4 的随机分组抽屉。 */
+.drawer-overlay {
+  transition: opacity 0.3s ease;
+}
+.drawer-content {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.drawer-hidden {
+  pointer-events: none;
+}
+.drawer-hidden .drawer-overlay {
+  opacity: 0;
+  pointer-events: none;
+}
+.drawer-hidden .drawer-content {
+  transform: translateY(100%);
+}
+
+/* 极速洗牌动画特效 */
+@keyframes shake-blur {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0);
+    filter: blur(1.5px);
+  }
+  25% {
+    transform: translate(-2px, 1px) rotate(-2deg);
+    filter: blur(2px);
+  }
+  50% {
+    transform: translate(2px, -1px) rotate(2deg);
+    filter: blur(2.5px);
+  }
+  75% {
+    transform: translate(-1px, -2px) rotate(-1deg);
+    filter: blur(1.5px);
+  }
+}
+.shuffling-active .name-box {
+  animation: shake-blur 0.12s infinite;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
+}
+
+#teamContainer.shuffling-active {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.1);
+}
+#teamContainer.shuffling-active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(168, 85, 247, 0.15) 50%,
+    transparent 100%
+  );
+  animation: scan-line 1.5s linear infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+@keyframes scan-line {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes scale-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.pop-in {
+  animation: scale-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* 原 #toast 的视觉；由 ToastHost 通过 .show 响应式控制，隐藏时不接收点击。 */
+.app-toast {
+  visibility: hidden;
+  position: fixed;
+  left: 50%;
+  bottom: 30px;
+  z-index: 100;
+  min-width: 250px;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: rgba(16, 185, 129, 0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition:
+    opacity 0.3s,
+    bottom 0.3s;
+}
+.app-toast.show {
+  visibility: visible;
+  bottom: 50px;
+  opacity: 1;
+}
+.app-toast-error {
+  background-color: rgba(239, 68, 68, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-glow,
+  .dot1,
+  .dot2,
+  .dot3,
+  .terminal-cursor,
+  .pop-in {
+    animation: none;
+  }
+  .drawer-overlay,
+  .drawer-content {
+    transition: none;
+  }
+}

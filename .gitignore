@@ -1,0 +1,36 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.env
+.env.*
+!.env.example
+*.log
+
+# 此项目使用 pnpm-lock.yaml；防止意外提交其它包管理器的锁文件
+package-lock.json
+npm-shrinkwrap.json
+yarn.lock
+
+# pnpm 本地内容寻址 store
+.pnpm-store/
+
+# Workspace-local Rust toolchain and Tauri generated output
+.cargo/
+.rustup/
+src-tauri/target/
+src-tauri/gen/
+
+# 本地凭据 / 私钥 / 环境覆盖，禁止提交到仓库
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+src-tauri/.env
+src-tauri/.env.*

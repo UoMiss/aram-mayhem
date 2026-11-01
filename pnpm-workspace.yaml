@@ -1,0 +1,6 @@
+packages:
+  - '.'
+
+# pnpm 10 默认不执行依赖安装脚本。只允许 Vite 所需的 esbuild 安装脚本。
+allowBuilds:
+  esbuild: true

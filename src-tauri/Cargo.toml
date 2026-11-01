@@ -1,0 +1,19 @@
+[package]
+name = "aram-mayhem"
+version = "0.1.0"
+description = "ARAM: Mayhem desktop shell"
+authors = ["ARAM: Mayhem"]
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "aram_mayhem_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

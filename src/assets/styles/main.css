@@ -1,0 +1,4 @@
+@import '@fortawesome/fontawesome-free/css/all.min.css' layer(vendor);
+@import 'tailwindcss';
+@import './theme.css';
+@import './effects.css';
