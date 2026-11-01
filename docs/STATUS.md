@@ -1,9 +1,10 @@
 # 阶段状态（2026-11-01）
 
-## 当前阶段：阶段 10.1 LCU 连接基础 — 开发完成，待 Windows 实机验证
+## 当前阶段：阶段 10.1.5 Windows CI / NSIS — CI 通过，待 Windows 桌面实机验证
 
 已完成 Rust LCU 发现、只读 loopback HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event、前端 service/adapter/Pinia 契约。macOS 已实测返回 `unsupported_platform`，不伪造真实客户端；未连接真实 LCU。
 
+阶段 10.1.5 说明：[PHASE10_1_5_WINDOWS_CI.md](PHASE10_1_5_WINDOWS_CI.md)。  
 阶段 10.1 说明：[PHASE10_1_LCU_FOUNDATION.md](PHASE10_1_LCU_FOUNDATION.md)。
 阶段九基线提交：`d85bb44 chore: establish phase 9 Tauri baseline`。
 
@@ -74,3 +75,10 @@
 2. 阶段 10.2 再接入只读 gameflow/房间；状态与连接状态分离，事件按 revision 消费。
 3. 增加本地假 LCU HTTPS 服务集成测试（auth/timeout/restart），再考虑真实客户端。
 4. 凭据保持 Rust 内存；日志/事件/测试不得出现 password/Authorization。
+
+## Windows CI 结果
+
+- Run `41294166671` 成功；Windows-2022：82 前端测试、27 Rust 测试、MSVC check、NSIS 构建、Artifact 上传。
+- NSIS `ARAM Mayhem_0.1.0_x64-setup.exe`：4,182,062 bytes，SHA-256 `d08cacced2dde3049860a52fed425752b9748c035c4af14635b5099b57bf205f`。
+- Artifact：`aram-mayhem-windows-x64`，id `13078453720`。
+- 真实 Windows 10/11 桌面和真实 LCU 仍未验收；GitHub Runner 通过不等于桌面验收。

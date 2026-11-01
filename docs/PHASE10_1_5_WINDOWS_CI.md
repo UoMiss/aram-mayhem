@@ -1,6 +1,6 @@
 # 阶段 10.1.5：GitHub 推送与 Windows x64 CI / NSIS
 
-结论：**Windows CI 构建与自动化测试通过**。  
+结论：**Windows CI 构建与自动化测试通过**。
 真实 Windows 10/11 桌面安装、运行和 LCU 连接仍未验收。
 
 ## 1. 仓库与提交

@@ -30,7 +30,8 @@
 - [x] Stage 8.2：简体中文文案资源化（仅 zh-CN）
 - [x] Stage 9：Tauri 2 + Rust 桌面工程、IPC 与 macOS `.app`
 - [x] Stage 10.1：Rust LCU 发现、只读连接、状态机、自动重连与 Mock 测试
-- [ ] Stage 10.2+：Windows 实机 LCU 验证、gameflow/房间、Windows 安装包、托盘/Updater、签名
+- [x] Stage 10.1.5：GitHub 私有仓库、Windows x64 CI、27 Rust 测试与 NSIS Artifact
+- [ ] Stage 10.2+：Windows 实机 LCU 验证、gameflow/房间、托盘/Updater、签名
 
 ## Stage 9 交付
 
@@ -42,6 +43,16 @@
 - CSP 与仅 `core:default` capability；无 Shell/FS/HTTP/Clipboard 插件/Updater。
 - 75 前端测试、103 构建模块、3 Rust 测试、cargo check/fmt、tauri dev、tauri build `.app` 通过。
 - 限制：完整 Xcode 未安装、DMG hdiutil 沙箱拒绝、桌面截图/剪贴板自动化权限不足；详见 `docs/PHASE9_TAURI_INTEGRATION.md`。
+
+## Stage 10.1.5 交付
+
+- 私有仓库：https://github.com/UoMiss/aram-mayhem；main 成功代码提交 `5d0c961d1e107779eab9def6b0167b267a36e853`。
+- Workflow：`.github/workflows/windows-build.yml`；Run `41294166671` 成功。
+- Windows-2022：82 前端测试、27 Rust 测试、MSVC check、NSIS、Artifact 上传均成功。
+- NSIS：`ARAM Mayhem_0.1.0_x64-setup.exe`，4,182,062 bytes，SHA-256 `d08cacced2dde3049860a52fed425752b9748c035c4af14635b5099b57bf205f`。
+- Artifact：`aram-mayhem-windows-x64`，id `13078453720`。
+- 真实 Windows 10/11 桌面和真实 LCU 未验收；未签名、未创建 Release。
+- 详情：`docs/PHASE10_1_5_WINDOWS_CI.md`。
 
 ## Stage 10.1 交付
 

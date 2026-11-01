@@ -254,3 +254,13 @@ Tauri dev 与 release `.app` 均重复得到上述结果；没有启动 monitor�
 - 凭据仍只留 Rust 内存；日志/事件/测试不得包含 password/Authorization。
 - 先用本地假 LCU HTTPS 服务做 auth/超时/重启集成测试，再接真实客户端。
 - 不提前实现红包、结算或任何写操作。
+
+## 12. 阶段 10.1.5 Windows CI 补充
+
+- Windows CI Run `41294166671` 成功；Windows-2022。
+- `cargo check --target x86_64-pc-windows-msvc` 通过；`cargo test --target ...` 27 passed。
+- `pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis` 成功。
+- NSIS `ARAM Mayhem_0.1.0_x64-setup.exe` 4,182,062 bytes；SHA-256 `d08cacced2dde3049860a52fed425752b9748c035c4af14635b5099b57bf205f`。
+- Artifact `aram-mayhem-windows-x64`（id `13078453720`）已上传。
+- 真实 Windows 10/11 桌面安装/运行与真实 LCU 仍未验收。
+- 详情：[PHASE10_1_5_WINDOWS_CI.md](PHASE10_1_5_WINDOWS_CI.md)。

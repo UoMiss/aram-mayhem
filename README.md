@@ -1,10 +1,10 @@
 # 海克斯大乱斗 · ARAM: Mayhem
 
-**Phase 10.1：Rust LCU 连接基础**
+**Phase 10.1.5：Windows CI / NSIS**
 
 在阶段九 Tauri 桌面上新增 Rust LCU 发现、只读 HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event 和浏览器 Mock/Tauri 真实来源隔离。macOS 明确返回 `unsupported_platform`，不伪造真实客户端；Windows 条件代码尚未实机验证。
 
-当前验收为 **开发完成，待 Windows 实机验证**。原有浏览器视觉、i18n 和 75 测试基线保持，当前达到 **82 个前端测试 / 106 个构建模块 / 27 个 Rust 测试**。详见 [阶段 10.1 实施记录](docs/PHASE10_1_LCU_FOUNDATION.md)、[阶段九实施记录](docs/PHASE9_TAURI_INTEGRATION.md) 与 [i18n 实施记录](docs/ZH_CN_I18N_MIGRATION.md)。
+Windows CI 已通过：82 前端测试、27 Rust 测试、Windows MSVC 编译与 NSIS Artifact 均成功；真实 Windows 10/11 桌面和真实 LCU 仍待验收。原有浏览器视觉、i18n 和 75 测试基线保持，当前达到 **82 个前端测试 / 106 个构建模块 / 27 个 Rust 测试**。详见 [阶段 10.1 实施记录](docs/PHASE10_1_LCU_FOUNDATION.md)、[阶段九实施记录](docs/PHASE9_TAURI_INTEGRATION.md) 与 [i18n 实施记录](docs/ZH_CN_I18N_MIGRATION.md)。
 
 当前结算数据是一份标注为 `isSharedFixture` 的静态示例，不冒充七场历史战绩各自的真实结算；`selectedMatchId` 仅保留导航上下文。设置页三个开关为内存演示状态，不接入操作系统、LCU 或真实音效。
 
@@ -89,7 +89,8 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - 监控：单任务、2s 正常轮询、500ms–5s 退避、停止/应用退出清理；旧异步结果不可覆盖新状态。
 - 前端：`types/lcu.ts`、`services/lcu.service.ts`、browser/tauri adapters、Pinia `lcuStatus`；App 启动静默订阅/获取/启动，无 UI 改动。
 - 测试：82 前端 / 106 构建模块 / 27 Rust；Tauri dev/release 在 macOS 实测 `UnsupportedPlatform/Unavailable`。
-- Windows 未实机验证；交叉检查被缺失的 MSVC/`windows.h` 阻断。详见阶段 10.1 文档。
+- Windows GitHub Actions 已通过：MSVC check、27 Rust 测试、NSIS 构建和 Artifact 上传；真实 Windows 10/11 桌面与真实 LCU 仍未验收。
+- 成功 Run `41294166671`；Workflow `.github/workflows/windows-build.yml`；Artifact `aram-mayhem-windows-x64`。
 
 ## 3.1 阶段九：Tauri 2 + Rust
 
@@ -189,6 +190,7 @@ docs/STATUS.md                        完成度与实际验证状态
 docs/FINAL_ACCEPTANCE.md              阶段八最终验收、审计与 Tauri/Rust/LCU 建议
 docs/PHASE9_TAURI_INTEGRATION.md      阶段九 Tauri/Rust 结构、IPC、测试与限制
 docs/PHASE10_1_LCU_FOUNDATION.md      阶段 10.1 LCU 发现、状态机、安全与限制
+docs/PHASE10_1_5_WINDOWS_CI.md        阶段 10.1.5 Windows CI/NSIS 结果与 Artifact
 docs/ZH_CN_I18N_MIGRATION.md          阶段 8.2 文案映射、职责调整与验收
 docs/verification/stage8/             全页面五宽度、三张真实 PNG 与审计证据
 docs/verification/stage8.2/           i18n 后五宽度、PNG 与基线差异
