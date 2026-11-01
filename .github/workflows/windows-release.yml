@@ -1,15 +1,17 @@
-name: Windows x64 CI
+name: Windows x64 Release
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: windows-x64-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  test-and-build:
+  release:
     name: Windows x64 tests and NSIS
     runs-on: windows-2022
     timeout-minutes: 60
@@ -39,18 +41,27 @@ jobs:
           targets: x86_64-pc-windows-msvc
           components: rustfmt
 
-      - name: Cache Rust build
+      - name: Restore shared Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             src-tauri -> target
-          key: windows-x64-lcu-10-1
+          shared-key: windows-x64
+          key: gameflow-10-2
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Frontend, TypeScript, ESLint, Prettier and 90 tests
-        run: pnpm check
+      - name: Baseline check
+        run: pnpm check:baseline
+
+      - name: TypeScript and ESLint
+        run: |
+          pnpm typecheck
+          pnpm lint
+
+      - name: Frontend tests
+        run: pnpm test
 
       - name: Dependency audit
         run: |
@@ -63,11 +74,13 @@ jobs:
       - name: Rust Windows check
         run: cargo check --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
 
-      - name: Rust Windows tests (LCU state machine/reconnect, no real client)
+      - name: Rust Windows tests (LCU Mock, no real client)
         run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
 
+      # tauri.ci.conf.json changes only the beforeBuildCommand to a single Vite build.
+      # Tests/typecheck/lint already ran above; this avoids a second frontend build.
       - name: Build Tauri NSIS
-        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/tauri.ci.conf.json
 
       - name: Prepare NSIS artifact and SHA-256
         shell: pwsh
