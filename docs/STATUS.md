@@ -95,3 +95,10 @@
 - Artifact：`aram-mayhem-windows-x64`，id `13085867754`；NSIS 4,315,210 bytes，SHA-256 `e5df5ce93e184e40ba46afb7746cde697477c111b9fddc331e54237b48103342`。
 - macOS Tauri：`connected=false phase=None transport=Disconnected`，不伪造真实数据。
 - 真实 Windows 10/11 桌面与真实 LCU gameflow 未验收。
+
+## CI 优化
+
+- Validation：`windows-validation.yml`（push/manual），9m28 冷缓存，不保存 1GB Rust cache。
+- Release：`windows-release.yml`（手动），热缓存 4m19，基线 11m42；前端只构建一次。
+- Artifact：`aram-mayhem-windows-x64` id `13087243783`；NSIS 4,313,373 bytes；SHA-256 `26916b588de478350d7444cc454b9a74dafcecef710e34c3d2e3ac2bcdb02f48`。
+- 详情：[CI_OPTIMIZATION.md](CI_OPTIMIZATION.md)。

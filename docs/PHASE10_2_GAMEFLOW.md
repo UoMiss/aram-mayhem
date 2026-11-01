@@ -250,23 +250,23 @@ lcu://session-ended
 
 ## 11. Windows CI 与 Artifact
 
-- Workflow：`Windows x64 CI`
-- Run：https://github.com/UoMiss/aram-mayhem/actions/runs/41312013808
-- head commit：`166a9748af42cef403422ac5fe628f1421c75f15`
+- Workflow：`Windows x64 Release`（Validation 独立）
+- Run：https://github.com/UoMiss/aram-mayhem/actions/runs/41316305870
+- head commit：`920f21e9a79deb0ca5131e3a9d2317916d926275`
 - `pnpm check`：90 前端测试通过
 - `cargo check --target x86_64-pc-windows-msvc`：通过
 - `cargo test --target x86_64-pc-windows-msvc`：47 passed
 - `pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis`：成功
-- Artifact：`aram-mayhem-windows-x64`（id `13085867754`）
+- Artifact：`aram-mayhem-windows-x64`（id `13087243783`）
 - NSIS：`ARAM Mayhem_0.1.0_x64-setup.exe`
-- 安装包大小：**4,315,210 bytes**
+- 安装包大小：**4,313,373 bytes**
 - SHA-256：
 
 ```text
-e5df5ce93e184e40ba46afb7746cde697477c111b9fddc331e54237b48103342
+26916b588de478350d7444cc454b9a74dafcecef710e34c3d2e3ac2bcdb02f48
 ```
 
-- Artifact zip：4,297,611 bytes
+- Artifact zip：4,295,772 bytes
 - 首次 CI 失败原因：Windows 条件路径下 `GameflowEventSource` trait 未导入；`166a974` 修复后通过。
 - 未签名、未创建 Release。
 

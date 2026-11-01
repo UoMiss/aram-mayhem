@@ -58,7 +58,7 @@
 ## Stage 10.1.5 交付
 
 - 私有仓库：https://github.com/UoMiss/aram-mayhem；main 成功代码提交 `5d0c961d1e107779eab9def6b0167b267a36e853`。
-- Workflow：`.github/workflows/windows-build.yml`；Run `41294166671` 成功。
+- Workflow（阶段 10.1.5）：`.github/workflows/windows-build.yml`；Run `41294166671` 成功（后拆分为 validation/release）。
 - Windows-2022：82 前端测试、27 Rust 测试、MSVC check、NSIS、Artifact 上传均成功。
 - NSIS：`ARAM Mayhem_0.1.0_x64-setup.exe`，4,182,062 bytes，SHA-256 `d08cacced2dde3049860a52fed425752b9748c035c4af14635b5099b57bf205f`。
 - Artifact：`aram-mayhem-windows-x64`，id `13078453720`。

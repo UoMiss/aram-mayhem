@@ -90,7 +90,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - 前端：`types/lcu.ts`、`services/lcu.service.ts`、browser/tauri adapters、Pinia `lcuStatus`；App 启动静默订阅/获取/启动，无 UI 改动。
 - 测试：82 前端 / 106 构建模块 / 27 Rust；Tauri dev/release 在 macOS 实测 `UnsupportedPlatform/Unavailable`。
 - Windows GitHub Actions 已通过：MSVC check、27 Rust 测试、NSIS 构建和 Artifact 上传；真实 Windows 10/11 桌面与真实 LCU 仍未验收。
-- 成功 Run `41294166671`；Workflow `.github/workflows/windows-build.yml`；Artifact `aram-mayhem-windows-x64`。
+- 成功 Run `41294166671`；Workflow：`.github/workflows/windows-release.yml`（手动）+ `.github/workflows/windows-validation.yml`（push/manual）；Artifact `aram-mayhem-windows-x64`。
 
 ## 3.1 阶段九：Tauri 2 + Rust
 
@@ -226,3 +226,7 @@ docs/verification/stage8.2/           i18n 后五宽度、PNG 与基线差异
 - 新增 Gameflow phase/Lobby/ChampSelect 快照、WebSocket 事件解析、1.5s 轮询 fallback、会话 generation/revision 防串局。
 - macOS 明确 unavailable；浏览器显式 Mock；真实 Windows LCU 仍待实机验收。
 - NSIS Artifact `aram-mayhem-windows-x64`：4,315,210 bytes，SHA-256 `e5df5ce93e184e40ba46afb7746cde697477c111b9fddc331e54237b48103342`。
+
+## CI 构建加速
+
+Windows CI 已拆分为 Validation 和手动 Release；热缓存 Release 4m19（基线 11m42），Release 前端只构建一次，Artifact SHA-256 `26916b588de478350d7444cc454b9a74dafcecef710e34c3d2e3ac2bcdb02f48`。详见 [CI 优化记录](docs/CI_OPTIMIZATION.md)。

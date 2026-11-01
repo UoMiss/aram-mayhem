@@ -15,7 +15,7 @@
 
 ## 2. Workflow
 
-[.github/workflows/windows-build.yml](../.github/workflows/windows-build.yml)
+> 本文件记录阶段 10.1.5 历史 workflow；阶段 10.2 CI 优化后已拆分为 [windows-validation.yml](../.github/workflows/windows-validation.yml) 与 [windows-release.yml](../.github/workflows/windows-release.yml)。
 
 - `workflow_dispatch` + `push` 到 `main`
 - `windows-2022` x64
