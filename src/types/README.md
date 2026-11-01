@@ -38,3 +38,5 @@
   - 不包含 localStorage、系统开机启动、音效资源或真实更新 API 类型。
 
 业务值到 i18n key 的映射集中在 `src/i18n/labels.ts`；类型层不保存中文显示文案。
+
+阶段 10.2 在 `lcu.ts` 增加 `GameflowPhase`、`LobbySnapshot`、`ChampionSelectSnapshot`、`GameSessionContext`、`GameflowSnapshot` 与 `GameflowAdapter`；未知阶段保留 `rawPhase`，连接状态与游戏阶段分离。

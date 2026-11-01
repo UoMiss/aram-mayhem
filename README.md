@@ -1,10 +1,10 @@
 # 海克斯大乱斗 · ARAM: Mayhem
 
-**Phase 10.1.5：Windows CI / NSIS**
+**Phase 10.2：LCU Gameflow 监听 / 房间 / 选英雄快照**
 
 在阶段九 Tauri 桌面上新增 Rust LCU 发现、只读 HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event 和浏览器 Mock/Tauri 真实来源隔离。macOS 明确返回 `unsupported_platform`，不伪造真实客户端；Windows CI 已通过编译、27 Rust 测试和 NSIS 构建，真实 Windows 桌面/LCU 仍未验收。
 
-Windows CI 已通过：82 前端测试、27 Rust 测试、Windows MSVC 编译与 NSIS Artifact 均成功；真实 Windows 10/11 桌面和真实 LCU 仍待验收。原有浏览器视觉、i18n 和 75 测试基线保持，当前达到 **82 个前端测试 / 106 个构建模块 / 27 个 Rust 测试**。详见 [阶段 10.1.5 CI 记录](docs/PHASE10_1_5_WINDOWS_CI.md)、[阶段 10.1 实施记录](docs/PHASE10_1_LCU_FOUNDATION.md)、[阶段九实施记录](docs/PHASE9_TAURI_INTEGRATION.md) 与 [i18n 实施记录](docs/ZH_CN_I18N_MIGRATION.md)。
+Windows CI 已通过：90 前端测试、47 Rust 测试、Windows MSVC 编译与 NSIS Artifact 均成功；真实 Windows 10/11 桌面和真实 LCU 仍待验收。原有浏览器视觉、i18n 和 75 测试基线保持，当前达到 **90 个前端测试 / 106 个构建模块 / 47 个 Rust 测试**。详见 [阶段 10.2 实施记录](docs/PHASE10_2_GAMEFLOW.md)、[阶段 10.1.5 CI 记录](docs/PHASE10_1_5_WINDOWS_CI.md)、[阶段 10.1 实施记录](docs/PHASE10_1_LCU_FOUNDATION.md) 与 [i18n 实施记录](docs/ZH_CN_I18N_MIGRATION.md)。
 
 当前结算数据是一份标注为 `isSharedFixture` 的静态示例，不冒充七场历史战绩各自的真实结算；`selectedMatchId` 仅保留导航上下文。设置页三个开关为内存演示状态，不接入操作系统、LCU 或真实音效。
 
@@ -65,7 +65,7 @@ pnpm check:baseline            # 核对原始 HTML 未被修改
 pnpm typecheck                 # Vue + TypeScript / Vite 配置类型检查
 pnpm lint                      # ESLint
 pnpm format:check              # 全仓 Prettier 检查
-pnpm test                      # Vitest（82 个测试）
+pnpm test                      # Vitest（90 个测试）
 pnpm build                     # 类型检查 + 生产构建（106 模块）
 pnpm check                     # baseline + typecheck + lint + test + build
 pnpm audit                     # 开发+生产依赖审计（当前 0 漏洞）
@@ -170,8 +170,8 @@ src/features/settings/                设置页、设置开关（阶段 7）
 src/i18n/                             唯一 zh-CN 资源、初始化与 key 映射（阶段 8.2）
 src/services/image.service.ts         结算/分组截图生成 / 剪贴板 / 下载服务
 src/services/app.service.ts           浏览器/Tauri 运行时选择与健康检查
-src/services/lcu.service.ts           LCU 状态/监控的浏览器/Tauri 选择
-src/types/lcu.ts                      LCU 状态/IPC 契约
+src/services/lcu.service.ts           LCU 状态 / Gameflow 的浏览器/Tauri 选择
+src/types/lcu.ts                      LCU 状态 / Gameflow / Lobby / ChampSelect 契约
 src/adapters/                         browser / tauri 桌面与 LCU adapter
 src/adapters/                         browser / tauri 桌面适配器
 src/types/desktop.ts                  AppHealth / DesktopAdapter 契约
@@ -191,6 +191,7 @@ docs/FINAL_ACCEPTANCE.md              阶段八最终验收、审计与 Tauri/Ru
 docs/PHASE9_TAURI_INTEGRATION.md      阶段九 Tauri/Rust 结构、IPC、测试与限制
 docs/PHASE10_1_LCU_FOUNDATION.md      阶段 10.1 LCU 发现、状态机、安全与限制
 docs/PHASE10_1_5_WINDOWS_CI.md        阶段 10.1.5 Windows CI/NSIS 结果与 Artifact
+docs/PHASE10_2_GAMEFLOW.md             阶段 10.2 Gameflow/Lobby/ChampSelect/会话与事件
 docs/ZH_CN_I18N_MIGRATION.md          阶段 8.2 文案映射、职责调整与验收
 docs/verification/stage8/             全页面五宽度、三张真实 PNG 与审计证据
 docs/verification/stage8.2/           i18n 后五宽度、PNG 与基线差异
@@ -218,3 +219,10 @@ docs/verification/stage8.2/           i18n 后五宽度、PNG 与基线差异
 - Windows Tauri 编译/安装包、真实 LCU、Tauri 托盘/开机启动/Updater 未实现。
 - LCU 真实发现/连接/重连只在 Windows 客户端环境中才能最终确认；macOS 仅验证 `unsupported_platform` 与模拟状态机。
 - i18n 后仍保留的硬编码中文仅为玩家/英雄/时间/队列等数据、Service 内部诊断、测试数据和注释；Vue 模板已无中文 UI 字面量。
+
+## 阶段 10.2 结果
+
+- 90 前端测试 / 47 Rust 测试；Windows CI Run `41312013808` 成功。
+- 新增 Gameflow phase/Lobby/ChampSelect 快照、WebSocket 事件解析、1.5s 轮询 fallback、会话 generation/revision 防串局。
+- macOS 明确 unavailable；浏览器显式 Mock；真实 Windows LCU 仍待实机验收。
+- NSIS Artifact `aram-mayhem-windows-x64`：4,315,210 bytes，SHA-256 `e5df5ce93e184e40ba46afb7746cde697477c111b9fddc331e54237b48103342`。

@@ -1,8 +1,10 @@
 # 阶段状态（2026-11-01）
 
-## 当前阶段：阶段 10.1.5 Windows CI / NSIS — CI 通过，待 Windows 桌面实机验证
+## 当前阶段：阶段 10.2 LCU Gameflow — 代码/Windows CI 通过，待真实 Windows 游戏流程验收
 
 已完成 Rust LCU 发现、只读 loopback HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event、前端 service/adapter/Pinia 契约。macOS 已实测返回 `unsupported_platform`，不伪造真实客户端；未连接真实 LCU。
+
+阶段 10.2 说明：[PHASE10_2_GAMEFLOW.md](PHASE10_2_GAMEFLOW.md)。
 
 阶段 10.1.5 说明：[PHASE10_1_5_WINDOWS_CI.md](PHASE10_1_5_WINDOWS_CI.md)。
 
@@ -84,3 +86,12 @@
 - NSIS `ARAM Mayhem_0.1.0_x64-setup.exe`：4,182,062 bytes，SHA-256 `d08cacced2dde3049860a52fed425752b9748c035c4af14635b5099b57bf205f`。
 - Artifact：`aram-mayhem-windows-x64`，id `13078453720`。
 - 真实 Windows 10/11 桌面和真实 LCU 仍未验收；GitHub Runner 通过不等于桌面验收。
+
+## 阶段 10.2 结果
+
+- Rust：Gameflow phase、Lobby/ChampSelect 解析、会话生命周期、WAMP WebSocket、轮询 fallback、generation 防旧结果。
+- 前端：Gameflow types/adapter/service/Pinia/i18n 映射；页面无新增视觉。
+- 测试：90 前端 / 47 Rust；Windows CI Run `41312013808` 成功（MSVC check/test/NSIS/Artifact）。
+- Artifact：`aram-mayhem-windows-x64`，id `13085867754`；NSIS 4,315,210 bytes，SHA-256 `e5df5ce93e184e40ba46afb7746cde697477c111b9fddc331e54237b48103342`。
+- macOS Tauri：`connected=false phase=None transport=Disconnected`，不伪造真实数据。
+- 真实 Windows 10/11 桌面与真实 LCU gameflow 未验收。

@@ -31,7 +31,8 @@
 - [x] Stage 9：Tauri 2 + Rust 桌面工程、IPC 与 macOS `.app`
 - [x] Stage 10.1：Rust LCU 发现、只读连接、状态机、自动重连与 Mock 测试
 - [x] Stage 10.1.5：GitHub 私有仓库、Windows x64 CI、27 Rust 测试与 NSIS Artifact
-- [ ] Stage 10.2+：Windows 实机 LCU 验证、gameflow/房间、托盘/Updater、签名
+- [x] Stage 10.2：LCU Gameflow、Lobby/ChampSelect 快照、WebSocket + 轮询与会话隔离
+- [ ] Stage 10.3+：真实 Windows 游戏流程验证、战绩/结算接入、托盘/Updater、签名
 
 ## Stage 9 交付
 
@@ -43,6 +44,16 @@
 - CSP 与仅 `core:default` capability；无 Shell/FS/HTTP/Clipboard 插件/Updater。
 - 75 前端测试、103 构建模块、3 Rust 测试、cargo check/fmt、tauri dev、tauri build `.app` 通过。
 - 限制：完整 Xcode 未安装、DMG hdiutil 沙箱拒绝、桌面截图/剪贴板自动化权限不足；详见 `docs/PHASE9_TAURI_INTEGRATION.md`。
+
+## Stage 10.2 交付
+
+- Gameflow phase 全量解析、未知阶段、Lobby/ChampSelect 精简快照、GameSessionContext。
+- WebSocket WAMP 事件解析 + 1.5s HTTP 轮询 fallback + 会话 generation/revision。
+- Tauri 命令/事件：snapshot/start/stop + gameflow/lobby/champ-select/session-ended。
+- 前端 types/adapter/service/Pinia/i18n；无 UI 改动。
+- 90 前端 / 47 Rust 测试；Windows CI Run `41312013808` 成功，NSIS 4,315,210 bytes，SHA-256 `e5df5ce93e184e40ba46afb7746cde697477c111b9fddc331e54237b48103342`。
+- 真实 Windows 游戏流程/LCU 未验收。
+- 详情：`docs/PHASE10_2_GAMEFLOW.md`。
 
 ## Stage 10.1.5 交付
 
