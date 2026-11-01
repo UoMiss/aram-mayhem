@@ -1,5 +1,5 @@
 import type { AppHealth, DesktopAdapter } from '@/types/desktop'
-import type { LcuAdapter, LcuStatusDto } from '@/types/lcu'
+import type { GameflowAdapter, GameflowSnapshot, LcuAdapter, LcuStatusDto } from '@/types/lcu'
 
 /** Browser mode intentionally stays on Mock data; no LCU is contacted. */
 export const browserAdapter: DesktopAdapter = {
@@ -43,6 +43,46 @@ export const browserLcuAdapter: LcuAdapter = {
       code: 'monitoring_stopped',
       revision: 2,
       monitoring: false,
+    })
+  },
+  async subscribe() {
+    return () => undefined
+  },
+}
+
+function mockGameflow(overrides: Partial<GameflowSnapshot> = {}): GameflowSnapshot {
+  return {
+    revision: 1,
+    updatedAt: Date.now(),
+    connected: true,
+    phase: 'lobby',
+    rawPhase: 'Lobby',
+    transport: 'polling',
+    source: 'mock',
+    simulated: true,
+    session: null,
+    code: null,
+    message: null,
+    ...overrides,
+  }
+}
+
+/** Browser gameflow remains explicit Mock data; it never implies a real LCU. */
+export const browserGameflowAdapter: GameflowAdapter = {
+  async getSnapshot() {
+    return mockGameflow()
+  },
+  async startMonitoring() {
+    return mockGameflow()
+  },
+  async stopMonitoring() {
+    return mockGameflow({
+      revision: 2,
+      connected: false,
+      phase: null,
+      rawPhase: null,
+      transport: 'disconnected',
+      code: 'monitoring_stopped',
     })
   },
   async subscribe() {

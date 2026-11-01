@@ -119,6 +119,23 @@ const zhCN = {
     checkUpdate: '检查更新',
     updateLatest: '已是最新版本！',
   },
+  gameflow: {
+    phases: {
+      none: '无对局',
+      lobby: '房间中',
+      matchmaking: '匹配中',
+      ready_check: '确认对局',
+      champ_select: '选英雄',
+      game_start: '游戏开始',
+      in_progress: '对局进行中',
+      reconnect: '重连中',
+      waiting_for_stats: '等待结算',
+      pre_end_of_game: '结算前',
+      end_of_game: '对局结束',
+      terminated_in_error: '异常终止',
+      unknown: '未知阶段',
+    },
+  },
   toast: {
     connectFirst: '请先连接客户端',
     screenshotMissing: '截图区域不存在',

@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DesktopServiceError, LcuServiceError } from '@/services/desktop-error'
 import type { AppHealth } from '@/types/desktop'
-import { LCU_STATUS_EVENT, type LcuStatusDto } from '@/types/lcu'
+import {
+  GAMEFLOW_CHAMP_SELECT_EVENT,
+  GAMEFLOW_LOBBY_EVENT,
+  GAMEFLOW_SESSION_ENDED_EVENT,
+  GAMEFLOW_UPDATED_EVENT,
+  LCU_STATUS_EVENT,
+  type GameflowSnapshot,
+  type LcuStatusDto,
+} from '@/types/lcu'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 const listenMock = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }))
 
-import { tauriAdapter, tauriLcuAdapter } from './tauri.adapter'
+import { tauriAdapter, tauriGameflowAdapter, tauriLcuAdapter } from './tauri.adapter'
 
 const health: AppHealth = {
   status: 'ok',
@@ -100,5 +108,64 @@ describe('tauri LCU adapter', () => {
       message: 'LCU IPC failed',
     })
     expect(new LcuServiceError('lcu.ipc_failed', 'LCU IPC failed')).toBeInstanceOf(Error)
+  })
+})
+
+const gameflowSnapshot: GameflowSnapshot = {
+  revision: 7,
+  updatedAt: 123,
+  connected: true,
+  phase: 'champ_select',
+  rawPhase: 'ChampSelect',
+  transport: 'websocket',
+  source: 'real',
+  simulated: false,
+  session: null,
+  code: null,
+  message: null,
+}
+
+describe('tauri gameflow adapter', () => {
+  beforeEach(() => {
+    invokeMock.mockReset()
+    listenMock.mockReset()
+  })
+
+  it('invokes initial snapshot and monitoring commands', async () => {
+    invokeMock.mockResolvedValue(gameflowSnapshot)
+    await expect(tauriGameflowAdapter.getSnapshot()).resolves.toEqual(gameflowSnapshot)
+    await expect(tauriGameflowAdapter.startMonitoring()).resolves.toEqual(gameflowSnapshot)
+    await expect(tauriGameflowAdapter.stopMonitoring()).resolves.toEqual(gameflowSnapshot)
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'lcu_get_gameflow_snapshot')
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'lcu_start_gameflow_monitoring')
+    expect(invokeMock).toHaveBeenNthCalledWith(3, 'lcu_stop_gameflow_monitoring')
+  })
+
+  it('subscribes all typed events and unlistens them together', async () => {
+    const unlisten = vi.fn()
+    listenMock.mockResolvedValue(unlisten)
+    const listener = vi.fn()
+    const off = await tauriGameflowAdapter.subscribe(listener)
+
+    expect(listenMock).toHaveBeenCalledTimes(4)
+    expect(listenMock).toHaveBeenNthCalledWith(1, GAMEFLOW_UPDATED_EVENT, expect.any(Function))
+    expect(listenMock).toHaveBeenNthCalledWith(2, GAMEFLOW_LOBBY_EVENT, expect.any(Function))
+    expect(listenMock).toHaveBeenNthCalledWith(3, GAMEFLOW_CHAMP_SELECT_EVENT, expect.any(Function))
+    expect(listenMock).toHaveBeenNthCalledWith(
+      4,
+      GAMEFLOW_SESSION_ENDED_EVENT,
+      expect.any(Function),
+    )
+
+    const calls = listenMock.mock.calls
+    ;(calls[0]?.[1] as (event: { payload: GameflowSnapshot }) => void)({
+      payload: gameflowSnapshot,
+    })
+    ;(calls[1]?.[1] as (event: { payload: null }) => void)({ payload: null })
+    expect(listener).toHaveBeenNthCalledWith(1, { type: 'updated', snapshot: gameflowSnapshot })
+    expect(listener).toHaveBeenNthCalledWith(2, { type: 'lobby', lobby: null })
+
+    off()
+    expect(unlisten).toHaveBeenCalledTimes(4)
   })
 })

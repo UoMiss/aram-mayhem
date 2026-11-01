@@ -7,6 +7,10 @@ const mocks = vi.hoisted(() => ({
   start: vi.fn(),
   stop: vi.fn(),
   subscribe: vi.fn(),
+  gameflowGet: vi.fn(),
+  gameflowStart: vi.fn(),
+  gameflowStop: vi.fn(),
+  gameflowSubscribe: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => mocks.tauri }))
@@ -17,6 +21,12 @@ vi.mock('@/adapters/tauri.adapter', () => ({
     stopMonitoring: mocks.stop,
     subscribe: mocks.subscribe,
   },
+  tauriGameflowAdapter: {
+    getSnapshot: mocks.gameflowGet,
+    startMonitoring: mocks.gameflowStart,
+    stopMonitoring: mocks.gameflowStop,
+    subscribe: mocks.gameflowSubscribe,
+  },
 }))
 
 import {
@@ -24,6 +34,9 @@ import {
   startLcuMonitoring,
   stopLcuMonitoring,
   subscribeLcuStatus,
+  getGameflowSnapshot,
+  startGameflowMonitoring,
+  subscribeGameflow,
 } from './lcu.service'
 
 const realStatus: LcuStatusDto = {
@@ -44,6 +57,10 @@ describe('LCU service runtime selection', () => {
     mocks.start.mockReset()
     mocks.stop.mockReset()
     mocks.subscribe.mockReset()
+    mocks.gameflowGet.mockReset()
+    mocks.gameflowStart.mockReset()
+    mocks.gameflowStop.mockReset()
+    mocks.gameflowSubscribe.mockReset()
   })
 
   it('keeps browser mode on the explicit Mock adapter', async () => {
@@ -68,5 +85,49 @@ describe('LCU service runtime selection', () => {
     const listener = vi.fn()
     await expect(subscribeLcuStatus(listener)).resolves.toBe(unlisten)
     expect(mocks.subscribe).toHaveBeenCalledWith(listener)
+  })
+})
+
+const gameflowSnapshot: import('@/types/lcu').GameflowSnapshot = {
+  revision: 3,
+  updatedAt: 123,
+  connected: true,
+  phase: 'lobby',
+  rawPhase: 'Lobby',
+  transport: 'polling',
+  source: 'real',
+  simulated: false,
+  session: null,
+  code: null,
+  message: null,
+}
+
+describe('gameflow service runtime selection', () => {
+  beforeEach(() => {
+    mocks.tauri = false
+    mocks.gameflowGet.mockReset()
+    mocks.gameflowStart.mockReset()
+    mocks.gameflowStop.mockReset()
+    mocks.gameflowSubscribe.mockReset()
+  })
+
+  it('uses only the explicit browser Mock outside Tauri', async () => {
+    const snapshot = await startGameflowMonitoring()
+    expect(snapshot.source).toBe('mock')
+    expect(snapshot.simulated).toBe(true)
+    expect(mocks.gameflowStart).not.toHaveBeenCalled()
+  })
+
+  it('dispatches initial snapshot, monitoring and subscription in Tauri', async () => {
+    mocks.tauri = true
+    mocks.gameflowGet.mockResolvedValue(gameflowSnapshot)
+    mocks.gameflowStart.mockResolvedValue(gameflowSnapshot)
+    const unlisten = vi.fn()
+    mocks.gameflowSubscribe.mockResolvedValue(unlisten)
+    await expect(getGameflowSnapshot()).resolves.toEqual(gameflowSnapshot)
+    await expect(startGameflowMonitoring()).resolves.toEqual(gameflowSnapshot)
+    const listener = vi.fn()
+    await expect(subscribeGameflow(listener)).resolves.toBe(unlisten)
+    expect(mocks.gameflowSubscribe).toHaveBeenCalledWith(listener)
   })
 })

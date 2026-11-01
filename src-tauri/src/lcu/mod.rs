@@ -1,7 +1,12 @@
+pub mod champ_select;
 pub mod client;
 pub mod connection;
 pub mod discovery;
 pub mod error;
+pub mod gameflow;
+pub mod gameflow_events;
+pub mod gameflow_monitor;
+pub mod lobby;
 pub mod models;
 pub mod monitor;
 

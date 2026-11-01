@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { browserAdapter, browserLcuAdapter } from './browser.adapter'
+import { browserAdapter, browserGameflowAdapter, browserLcuAdapter } from './browser.adapter'
 
 describe('browser desktop adapter', () => {
   it('returns a typed Mock health response without contacting Tauri', async () => {
@@ -33,6 +33,29 @@ describe('browser LCU adapter', () => {
       source: 'mock',
       simulated: true,
       monitoring: false,
+    })
+  })
+})
+
+describe('browser gameflow adapter', () => {
+  it('returns an explicit Mock gameflow snapshot, never a real LCU claim', async () => {
+    const snapshot = await browserGameflowAdapter.startMonitoring()
+    expect(snapshot).toMatchObject({
+      connected: true,
+      phase: 'lobby',
+      rawPhase: 'Lobby',
+      source: 'mock',
+      simulated: true,
+      transport: 'polling',
+    })
+
+    const stopped = await browserGameflowAdapter.stopMonitoring()
+    expect(stopped).toMatchObject({
+      connected: false,
+      phase: null,
+      source: 'mock',
+      simulated: true,
+      transport: 'disconnected',
     })
   })
 })

@@ -6,7 +6,7 @@ import type { HistoryFilter, MatchHistoryItem } from '@/types/history'
 import type { HomeProfile, HomeViewModel, ScoreRuleSelection } from '@/types/home'
 import { createDefaultSettings } from '@/mocks/settings'
 import type { SettingKey, SettingsFlags } from '@/types/settings'
-import type { LcuStatusDto } from '@/types/lcu'
+import type { GameflowSnapshot, LcuStatusDto } from '@/types/lcu'
 
 /** 演示连接耗时，与原版 simulateConnect() 的 1500ms 保持一致。 */
 export const CONNECT_DELAY_MS = 1500
@@ -35,6 +35,7 @@ export const useAppStore = defineStore('app', () => {
 
   const settings = ref<SettingsFlags>(createDefaultSettings())
   const lcuStatus = ref<LcuStatusDto | null>(null)
+  const gameflowSnapshot = ref<GameflowSnapshot | null>(null)
 
   const toastMessage = ref('')
   const toastTone = ref<ToastTone>('success')
@@ -121,6 +122,14 @@ export const useAppStore = defineStore('app', () => {
     lcuStatus.value = status
   }
 
+  /** Only newer gameflow snapshots may overwrite the store. */
+  function setGameflowSnapshot(snapshot: GameflowSnapshot) {
+    if (gameflowSnapshot.value && snapshot.revision <= gameflowSnapshot.value.revision) {
+      return
+    }
+    gameflowSnapshot.value = snapshot
+  }
+
   /** 记录所点战绩 ID 并进入结算导航；非法 ID 不改变当前状态。 */
   function openMatchDetail(matchId: string) {
     const match = matchHistory.find((item) => item.id === matchId)
@@ -154,6 +163,7 @@ export const useAppStore = defineStore('app', () => {
     selectedMatch,
     settings,
     lcuStatus,
+    gameflowSnapshot,
     toastMessage,
     toastTone,
     toastVisible,
@@ -167,6 +177,7 @@ export const useAppStore = defineStore('app', () => {
     setHistoryFilter,
     setSetting,
     setLcuStatus,
+    setGameflowSnapshot,
     openMatchDetail,
     notify,
   }

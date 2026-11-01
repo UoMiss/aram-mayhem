@@ -2,6 +2,7 @@ import type { HistoryFilter, MatchMode, MatchResult } from '@/types/history'
 import type { HomeGameMode, HomeRoomPhase, ScoreRule } from '@/types/home'
 import type { PlayerRelation, SettlementStat, TeamSide } from '@/types/match-detail'
 import type { SettingKey } from '@/types/settings'
+import type { GameflowPhase } from '@/types/lcu'
 
 export const SCORE_RULE_NAME_KEYS: Record<ScoreRule, string> = {
   damage: 'rules.damage.name',
@@ -64,4 +65,20 @@ export const SETTING_LABEL_KEYS: Record<SettingKey, string> = {
   autoStart: 'settings.autoStart',
   autoRetry: 'settings.autoRetry',
   soundEffects: 'settings.soundEffects',
+}
+
+export const GAMEFLOW_PHASE_KEYS: Record<GameflowPhase, string> = {
+  none: 'gameflow.phases.none',
+  lobby: 'gameflow.phases.lobby',
+  matchmaking: 'gameflow.phases.matchmaking',
+  ready_check: 'gameflow.phases.ready_check',
+  champ_select: 'gameflow.phases.champ_select',
+  game_start: 'gameflow.phases.game_start',
+  in_progress: 'gameflow.phases.in_progress',
+  reconnect: 'gameflow.phases.reconnect',
+  waiting_for_stats: 'gameflow.phases.waiting_for_stats',
+  pre_end_of_game: 'gameflow.phases.pre_end_of_game',
+  end_of_game: 'gameflow.phases.end_of_game',
+  terminated_in_error: 'gameflow.phases.terminated_in_error',
+  unknown: 'gameflow.phases.unknown',
 }

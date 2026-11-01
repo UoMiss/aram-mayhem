@@ -63,6 +63,75 @@ impl LcuHttpClient {
             }
         }
     }
+
+    /// Read-only GET for a known LCU endpoint. Path is validated to start with `/`.
+    pub async fn get_json(
+        &self,
+        endpoint: &LcuClient,
+        path: &str,
+    ) -> Result<serde_json::Value, LcuError> {
+        let response = self.send_read(endpoint, path).await?;
+        parse_json_response(response).await
+    }
+
+    /// Optional read for endpoints where 404/204 legitimately means "no resource".
+    pub async fn get_json_optional(
+        &self,
+        endpoint: &LcuClient,
+        path: &str,
+    ) -> Result<Option<serde_json::Value>, LcuError> {
+        let response = self.send_read(endpoint, path).await?;
+        if response.status() == StatusCode::NOT_FOUND || response.status() == StatusCode::NO_CONTENT
+        {
+            return Ok(None);
+        }
+        parse_json_response(response).await.map(Some)
+    }
+
+    async fn send_read(
+        &self,
+        endpoint: &LcuClient,
+        path: &str,
+    ) -> Result<reqwest::Response, LcuError> {
+        if !path.starts_with('/') || path.starts_with("//") {
+            return Err(LcuError::new(
+                LcuErrorCode::Internal,
+                "invalid LCU read-only path",
+            ));
+        }
+        let url = format!("{}{}", endpoint.endpoint(), path);
+        let response = self
+            .client
+            .get(url)
+            .basic_auth("riot", Some(endpoint.password()))
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
+
+        match response.status() {
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(LcuError::new(
+                LcuErrorCode::AuthenticationFailed,
+                "LCU authentication failed",
+            )),
+            status if status == StatusCode::NOT_FOUND || status == StatusCode::NO_CONTENT => {
+                Ok(response)
+            }
+            status if !status.is_success() => Err(LcuError::new(
+                LcuErrorCode::HttpStatus,
+                "LCU returned an unexpected status",
+            )),
+            _ => Ok(response),
+        }
+    }
+}
+
+async fn parse_json_response(response: reqwest::Response) -> Result<serde_json::Value, LcuError> {
+    response.json().await.map_err(|_| {
+        LcuError::new(
+            LcuErrorCode::InvalidResponse,
+            "LCU returned a malformed response",
+        )
+    })
 }
 
 fn map_reqwest_error(error: reqwest::Error) -> LcuError {

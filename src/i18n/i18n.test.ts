@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { i18n } from './index'
+import { GAMEFLOW_PHASE_KEYS } from './labels'
 import zhCN from './locales/zh-CN'
 
 function leafKeys(value: unknown, prefix = ''): string[] {
@@ -47,5 +48,15 @@ describe('zh-CN i18n resource', () => {
     expect(t('rules.none')).toBe('未选择规则')
     expect(t('matchDetail.teams.red')).toBe('我方失败')
     expect(t('matchDetail.stats.taken')).toBe('承伤')
+  })
+})
+
+describe('gameflow zh-CN labels', () => {
+  it('maps every phase contract to a non-empty zh-CN string', () => {
+    for (const [phase, key] of Object.entries(GAMEFLOW_PHASE_KEYS)) {
+      const value = i18n.global.t(key)
+      expect(value, phase).not.toBe(key)
+      expect(value.trim().length, phase).toBeGreaterThan(0)
+    }
   })
 })

@@ -1,6 +1,14 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { browserLcuAdapter } from '@/adapters/browser.adapter'
-import type { LcuAdapter, LcuStatusDto, LcuStatusListener, LcuUnlisten } from '@/types/lcu'
+import { browserGameflowAdapter, browserLcuAdapter } from '@/adapters/browser.adapter'
+import type {
+  GameflowAdapter,
+  GameflowEventListener,
+  GameflowSnapshot,
+  LcuAdapter,
+  LcuStatusDto,
+  LcuStatusListener,
+  LcuUnlisten,
+} from '@/types/lcu'
 
 async function getLcuAdapter(): Promise<LcuAdapter> {
   if (!isTauri()) {
@@ -24,4 +32,28 @@ export async function stopLcuMonitoring(): Promise<LcuStatusDto> {
 
 export async function subscribeLcuStatus(listener: LcuStatusListener): Promise<LcuUnlisten> {
   return (await getLcuAdapter()).subscribe(listener)
+}
+
+export async function getGameflowSnapshot(): Promise<GameflowSnapshot> {
+  return (await getGameflowAdapter()).getSnapshot()
+}
+
+export async function startGameflowMonitoring(): Promise<GameflowSnapshot> {
+  return (await getGameflowAdapter()).startMonitoring()
+}
+
+export async function stopGameflowMonitoring(): Promise<GameflowSnapshot> {
+  return (await getGameflowAdapter()).stopMonitoring()
+}
+
+export async function subscribeGameflow(listener: GameflowEventListener): Promise<LcuUnlisten> {
+  return (await getGameflowAdapter()).subscribe(listener)
+}
+
+async function getGameflowAdapter(): Promise<GameflowAdapter> {
+  if (!isTauri()) {
+    return browserGameflowAdapter
+  }
+  const { tauriGameflowAdapter } = await import('@/adapters/tauri.adapter')
+  return tauriGameflowAdapter
 }

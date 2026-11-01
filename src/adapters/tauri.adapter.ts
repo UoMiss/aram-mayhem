@@ -3,7 +3,16 @@ import { listen } from '@tauri-apps/api/event'
 import { DesktopServiceError, LcuServiceError } from '@/services/desktop-error'
 import type { AppHealth, DesktopAdapter } from '@/types/desktop'
 import {
+  GAMEFLOW_CHAMP_SELECT_EVENT,
+  GAMEFLOW_LOBBY_EVENT,
+  GAMEFLOW_SESSION_ENDED_EVENT,
+  GAMEFLOW_UPDATED_EVENT,
   LCU_STATUS_EVENT,
+  type ChampionSelectSnapshot,
+  type GameflowAdapter,
+  type GameflowEventListener,
+  type GameflowSnapshot,
+  type LobbySnapshot,
   type LcuAdapter,
   type LcuStatusDto,
   type LcuStatusListener,
@@ -53,6 +62,62 @@ export const tauriLcuAdapter: LcuAdapter = {
     try {
       return await listen<LcuStatusDto>(LCU_STATUS_EVENT, (event) => listener(event.payload))
     } catch {
+      throw lcuIpcError()
+    }
+  },
+}
+
+/** The only frontend module that knows the Rust gameflow command/event names. */
+export const tauriGameflowAdapter: GameflowAdapter = {
+  async getSnapshot() {
+    try {
+      return await invoke<GameflowSnapshot>('lcu_get_gameflow_snapshot')
+    } catch {
+      throw lcuIpcError()
+    }
+  },
+  async startMonitoring() {
+    try {
+      return await invoke<GameflowSnapshot>('lcu_start_gameflow_monitoring')
+    } catch {
+      throw lcuIpcError()
+    }
+  },
+  async stopMonitoring() {
+    try {
+      return await invoke<GameflowSnapshot>('lcu_stop_gameflow_monitoring')
+    } catch {
+      throw lcuIpcError()
+    }
+  },
+  async subscribe(listener: GameflowEventListener): Promise<LcuUnlisten> {
+    const unlisten: LcuUnlisten[] = []
+    try {
+      unlisten.push(
+        await listen<GameflowSnapshot>(GAMEFLOW_UPDATED_EVENT, (event) =>
+          listener({ type: 'updated', snapshot: event.payload }),
+        ),
+      )
+      unlisten.push(
+        await listen<LobbySnapshot | null>(GAMEFLOW_LOBBY_EVENT, (event) =>
+          listener({ type: 'lobby', lobby: event.payload }),
+        ),
+      )
+      unlisten.push(
+        await listen<ChampionSelectSnapshot | null>(GAMEFLOW_CHAMP_SELECT_EVENT, (event) =>
+          listener({ type: 'champ-select', championSelect: event.payload }),
+        ),
+      )
+      unlisten.push(
+        await listen<GameflowSnapshot['session']>(GAMEFLOW_SESSION_ENDED_EVENT, (event) =>
+          listener({ type: 'session-ended', session: event.payload }),
+        ),
+      )
+      return () => {
+        for (const stop of unlisten) stop()
+      }
+    } catch {
+      for (const stop of unlisten) stop()
       throw lcuIpcError()
     }
   },
