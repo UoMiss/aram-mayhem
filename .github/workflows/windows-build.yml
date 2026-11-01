@@ -1,0 +1,105 @@
+name: Windows x64 CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Windows x64 tests and NSIS
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+          key: windows-x64-lcu-10-1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend, TypeScript, ESLint, Prettier and 82 tests
+        run: pnpm check
+
+      - name: Dependency audit
+        run: |
+          pnpm audit
+          pnpm audit --prod
+
+      - name: Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Rust Windows check
+        run: cargo check --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+
+      - name: Rust Windows tests (LCU state machine/reconnect, no real client)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+
+      - name: Build Tauri NSIS
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Prepare NSIS artifact and SHA-256
+        shell: pwsh
+        run: |
+          $bundlePath = "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"
+          if (-not (Test-Path $bundlePath)) { throw "NSIS bundle directory not found: $bundlePath" }
+          $installer = Get-ChildItem -Path $bundlePath -Filter "*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($null -eq $installer) { throw "NSIS installer not found in $bundlePath" }
+
+          $artifact = "aram-mayhem-windows-x64-setup.exe"
+          Copy-Item $installer.FullName $artifact
+          $hash = (Get-FileHash $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+          $size = (Get-Item $artifact).Length
+          "$hash  $artifact" | Out-File -FilePath "windows-installer.sha256" -Encoding ascii
+
+          "INSTALLER_NAME=$($installer.Name)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "INSTALLER_SIZE=$size" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "INSTALLER_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          @"
+          ### Windows NSIS artifact
+          - Source installer: `$($installer.Name)`
+          - Size: `$size` bytes
+          - SHA-256: `$hash`
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aram-mayhem-windows-x64
+          path: |
+            aram-mayhem-windows-x64-setup.exe
+            windows-installer.sha256
+          if-no-files-found: error
+          retention-days: 7

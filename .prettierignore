@@ -17,3 +17,6 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/icons/
 src-tauri/Cargo.lock
+
+# Git attributes are not a Prettier-supported format
+.gitattributes

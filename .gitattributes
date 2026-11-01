@@ -1,0 +1,19 @@
+# Keep source/text deterministic across macOS and Windows checkouts.
+* text=auto eol=lf
+
+# The original HTML is hash-verified byte-for-byte; never apply EOL conversion.
+references/deepseek.original.html -text
+
+# Binary assets must never be text-converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+src-tauri/icons/** -text
