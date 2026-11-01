@@ -157,7 +157,9 @@ fn discover_windows() -> Result<Option<LcuClient>, LcuError> {
     use std::fs;
     use sysinfo::{ProcessesToUpdate, System};
 
-    let mut system = System::new_all();
+    let mut system = System::new_all().map_err(|_| {
+        LcuError::discovery_failed("failed to initialize Windows process discovery")
+    })?;
     system.refresh_processes(ProcessesToUpdate::All, true);
 
     let mut candidates = Vec::new();
