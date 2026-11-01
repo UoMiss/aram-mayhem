@@ -1,6 +1,6 @@
 # Windows x64 GitHub Actions 构建加速记录
 
-日期：2026-11-01  
+日期：2026-11-01
 范围：仅 GitHub Actions / CI 配置与 CI 专用 Tauri 配置，不修改 Vue、LCU、Pinia、Rust IPC 或 UI。
 
 ## 1. 优化前测量
