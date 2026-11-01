@@ -4,7 +4,8 @@
 
 已完成 Rust LCU 发现、只读 loopback HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event、前端 service/adapter/Pinia 契约。macOS 已实测返回 `unsupported_platform`，不伪造真实客户端；未连接真实 LCU。
 
-阶段 10.1.5 说明：[PHASE10_1_5_WINDOWS_CI.md](PHASE10_1_5_WINDOWS_CI.md)。  
+阶段 10.1.5 说明：[PHASE10_1_5_WINDOWS_CI.md](PHASE10_1_5_WINDOWS_CI.md)。
+
 阶段 10.1 说明：[PHASE10_1_LCU_FOUNDATION.md](PHASE10_1_LCU_FOUNDATION.md)。
 阶段九基线提交：`d85bb44 chore: establish phase 9 Tauri baseline`。
 
