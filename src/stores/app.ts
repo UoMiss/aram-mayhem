@@ -6,6 +6,7 @@ import type { HistoryFilter, MatchHistoryItem } from '@/types/history'
 import type { HomeProfile, HomeViewModel, ScoreRuleSelection } from '@/types/home'
 import { createDefaultSettings } from '@/mocks/settings'
 import type { SettingKey, SettingsFlags } from '@/types/settings'
+import type { LcuStatusDto } from '@/types/lcu'
 
 /** 演示连接耗时，与原版 simulateConnect() 的 1500ms 保持一致。 */
 export const CONNECT_DELAY_MS = 1500
@@ -33,6 +34,7 @@ export const useAppStore = defineStore('app', () => {
   const selectedMatchId = ref<string | null>(null)
 
   const settings = ref<SettingsFlags>(createDefaultSettings())
+  const lcuStatus = ref<LcuStatusDto | null>(null)
 
   const toastMessage = ref('')
   const toastTone = ref<ToastTone>('success')
@@ -114,6 +116,11 @@ export const useAppStore = defineStore('app', () => {
     settings.value[key] = value
   }
 
+  /** 桌面 LCU 状态与首页模拟连接分离；不用于改变现有 UI。 */
+  function setLcuStatus(status: LcuStatusDto) {
+    lcuStatus.value = status
+  }
+
   /** 记录所点战绩 ID 并进入结算导航；非法 ID 不改变当前状态。 */
   function openMatchDetail(matchId: string) {
     const match = matchHistory.find((item) => item.id === matchId)
@@ -146,6 +153,7 @@ export const useAppStore = defineStore('app', () => {
     selectedMatchId,
     selectedMatch,
     settings,
+    lcuStatus,
     toastMessage,
     toastTone,
     toastVisible,
@@ -158,6 +166,7 @@ export const useAppStore = defineStore('app', () => {
     setCurrentRule,
     setHistoryFilter,
     setSetting,
+    setLcuStatus,
     openMatchDetail,
     notify,
   }

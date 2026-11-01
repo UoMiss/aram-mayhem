@@ -233,4 +233,23 @@ describe('app store', () => {
     app.disconnect()
     expect(app.toastVisible).toBe(false)
   })
+  it('stores the separate desktop LCU status without changing the simulated connection', () => {
+    const app = useAppStore()
+    const status = {
+      status: 'unsupported_platform' as const,
+      code: 'unsupported_platform',
+      message: null,
+      source: 'unavailable' as const,
+      simulated: false,
+      revision: 1,
+      updatedAt: 123,
+      monitoring: false,
+    }
+
+    app.setLcuStatus(status)
+
+    expect(app.lcuStatus).toEqual(status)
+    expect(app.connectionPhase).toBe('disconnected')
+    expect(app.isConnected).toBe(false)
+  })
 })

@@ -1,76 +1,76 @@
 # 阶段状态（2026-11-01）
 
-## 当前阶段：阶段九 Tauri 2 + Rust 完成 — macOS 本地通过
+## 当前阶段：阶段 10.1 LCU 连接基础 — 开发完成，待 Windows 实机验证
 
-在既有 Vue 3 工程上增加 Tauri 2 桌面壳、Rust IPC 和浏览器/Tauri 适配层。仍使用全部现有 Mock，不接入真实 LCU；浏览器模式未回归。
+已完成 Rust LCU 发现、只读 loopback HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event、前端 service/adapter/Pinia 契约。macOS 已实测返回 `unsupported_platform`，不伪造真实客户端；未连接真实 LCU。
 
-阶段八/8.2 的浏览器视觉、中文 i18n、截图与 70 测试基线保留；阶段九新增到 **75 个前端测试 / 103 个构建模块**。
-
-阶段九说明：[PHASE9_TAURI_INTEGRATION.md](PHASE9_TAURI_INTEGRATION.md)。
+阶段 10.1 说明：[PHASE10_1_LCU_FOUNDATION.md](PHASE10_1_LCU_FOUNDATION.md)。
+阶段九基线提交：`d85bb44 chore: establish phase 9 Tauri baseline`。
 
 ## 环境
 
-- macOS 27.0.1 arm64；Xcode Command Line Tools 27.0；完整 Xcode 未安装。
-- Rust 1.99.1 / Cargo 1.99.1（工作区本地工具链；主机禁止写 `~/.cargo`）。
-- Tauri CLI / JS API 2.12.4；Rust tauri 2.12.5、tauri-build 2.7.4、wry 0.57.1、tao 0.37.2。
-- Node 22.23.4 / pnpm 10.34.9；无 npm/yarn 锁文件。
+- macOS 27.0.1 arm64；Xcode CLT 27.0；完整 Xcode 未安装。
+- Rust 1.99.1 / Cargo 1.99.1（工作区本地工具链）。
+- Tauri CLI / JS API 2.12.4；Rust tauri 2.12.5、tauri-build 2.7.4。
+- Node 22.23.4 / pnpm 10.34.9。
+- 新增 Rust：`reqwest` 0.13.5（rustls）、`tokio` 1.54.1、`async-trait` 0.1；Windows 专用 `sysinfo` 0.40.1。
 
-## 阶段九已完成
+## 已完成
 
-- `src-tauri/`：官方 `main.rs` → `lib.rs` 入口，`commands/app.rs` 独立命令模块。
-- 窗口 `ARAM: Mayhem`，480×900，最小 320×568；原生装饰、非透明、可调整大小。
-- Vite 与 Tauri 统一 `http://127.0.0.1:1420`，`strictPort: true`；beforeDev/beforeBuild 均 pnpm。
-- `app_health_check` Rust command + 类型化 `AppHealth`/`AppError`；前端 `invoke()`。
-- `browser.adapter` / `tauri.adapter` / `app.service`；App 启动静默探测，无可见测试按钮。
-- `@tauri-apps/api`/CLI 2.12.4；Tauri 图标、Cargo.lock、capability。
-- CSP 与仅 `core:default` 的最小能力配置；无 Shell/FS/HTTP/Clipboard 插件/Updater/LCU。
-- 适配器/IPC 契约测试 5 个；Rust 3 个测试。
+- `src-tauri/src/lcu/`：discovery、client、connection、monitor、models、error。
+- lockfile 解析：`name:pid:port:password:protocol`；只接受 https、非零 PID/端口、非空名称/密码。
+- 发现：Windows `LeagueClientUx.exe` + lockfile + PID 校验；不硬编码安装目录/端口；多实例/不可读/无效返回稳定错误。
+- 非 Windows：`unsupported_platform`，不创建 monitor、不发起网络请求。
+- 只读 HTTP：专用 loopback `reqwest` client，仅 `GET /riotclient/region-locale`；3 秒连接/请求超时。
+- 自签名证书：仅专用 client 禁用验证，目标固定 `https://127.0.0.1:{port}`；未全局关闭 TLS。
+- 状态机：unsupported_platform/not_running/discovering/connecting/connected/disconnected/reconnecting/error。
+- 状态 DTO：code/message/source/simulated/revision/updatedAt/monitoring；无密码/Authorization。
+- 监控：单任务、2s 正常轮询、500ms–5s 退避、generation 防旧结果、stop/shutdown 清理。
+- Tauri 命令：`lcu_get_connection_status`、`lcu_start_monitoring`、`lcu_stop_monitoring`；事件 `lcu://connection-status`。
+- 前端：`types/lcu.ts`、`services/lcu.service.ts`、browser/tauri adapters、Pinia `lcuStatus`；App 静默订阅/获取/启动，无 UI 改动。
+- 浏览器 Mock `source=mock/simulated=true`；macOS Tauri `source=unavailable/simulated=false`；真实失败不会变成 connected。
+- `app_health_check` 继续正常。
+- 新增 7 个前端测试；原有 75 个测试未删除。
 
 ## 实际验证结果
 
 - `pnpm install --frozen-lockfile`：通过。
 - `pnpm typecheck`：通过。
-- `pnpm lint`：通过（忽略 `.cargo`、`.rustup`、`src-tauri/target`、`gen`、`icons` 生成物）。
+- `pnpm lint`：通过。
 - `pnpm format:check`：通过。
-- `pnpm test`：**16 文件 / 75 测试通过**。
-- `pnpm build`：通过，**103 模块**。
+- `pnpm test`：**17 文件 / 82 测试通过**。
+- `pnpm build`：**106 模块**。
 - `pnpm check`：通过。
-- `pnpm audit`：0 漏洞；`pnpm audit --prod`：0。
+- `pnpm audit`：0；`pnpm audit --prod`：0。
 - `cargo check --manifest-path src-tauri/Cargo.toml`：通过，无 warning。
-- `cargo test --manifest-path src-tauri/Cargo.toml`：**3 passed**。
+- `cargo test --manifest-path src-tauri/Cargo.toml`：**27 passed**。
 - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`：通过。
-- `pnpm tauri dev`：Vite 1420 ready；Tauri 窗口运行；Rust 输出 `[app_health_check] runtime=tauri status=ok version=0.1.0 simulated=true`。
-- `pnpm tauri build`：通过，生成 `src-tauri/target/release/bundle/macos/ARAM Mayhem.app`（约 10.57 MiB）。
-- release `.app` 独立运行：再次输出 `[app_health_check]`，证明生产资源、CSP 与 IPC 正常。
+- `pnpm tauri dev`：Vite 1420 + Tauri 窗口；实际日志：
+
+```text
+[app_health_check] runtime=tauri status=ok version=0.1.0 simulated=true
+[lcu_get_connection_status] status=UnsupportedPlatform source=Unavailable
+[lcu_start_monitoring] status=UnsupportedPlatform source=Unavailable monitoring=false
+```
+
+- `pnpm tauri build`：通过，`ARAM Mayhem.app` 11.36 MiB。
+- release `.app` 运行：同样得到 `UnsupportedPlatform/Unavailable`，无 monitor 任务。
 - 原始 HTML SHA-256：`6197327909428f19baca483aa8ec9de170bfa8a34bf88e9d2db4b7546fbecd9e`，未变化。
 
-## 浏览器与桌面差异
+## 未完成 / 风险
 
-- 浏览器：`pnpm dev` → 1420；`browser.adapter` 返回 `runtime: "browser"`、`simulated: true`；现有 Mock。
-- 桌面：`pnpm tauri dev`/build；同一 Vue 页面和 Mock；`tauri.adapter` 调用 Rust 健康检查。
-- 桌面版不伪造 LCU 连接；健康检查只报告桌面壳状态。
-- 视觉/i18n/动画/480px 最大宽度/Font Awesome/本地资源均沿用现有前端。
-
-## IPC 与安全
-
-- 命令：`app_health_check`，无参数；返回 `status/runtime/appName/appVersion/platform/simulated`。
-- Rust `AppError { code, message }`；前端转为 `DesktopServiceError`，无堆栈。
-- Capability 仅 `core:default`；无 shell/fs/http/updater/global Tauri。
-- CSP 生产只允许 self、本地 asset、inline style、字体、IPC；dev CSP 额外 Vite/WS。
-
-## 已知限制
-
-- macOS 屏幕录制/辅助功能权限被拒，未取得 Tauri 窗口截图或拖拽自动化证据。
-- Tauri WebView 内剪贴板/下载未自动化点击；未接入 Tauri Clipboard 插件。浏览器剪贴板/下载已实测。
-- 本机完整 Xcode 未安装；`.app` 由 CLT 构建成功。
-- `.dmg` 的 `hdiutil` 在沙箱被拒绝，bundle target 暂为 `app`。
-- WebKit 无法写 `~/Library/WebKit` 的沙箱警告存在，但页面/IPC 正常。
-- Windows 未编译/未测试；签名、公证、自动更新、托盘、开机启动均未实现。
-- 真实 LCU、真实战绩/结算/红包逻辑未实现，全部仍为 Mock。
+- **Windows 真实 LCU 未验证**：无 Windows/LOL 环境；Windows 条件代码未实机编译/运行。
+- 尝试 `cargo check --target x86_64-pc-windows-msvc` 被缺失的 MSVC SDK/`windows.h`（aws-lc-sys 构建）阻断，不能据此声称 Windows 代码已类型验证。
+- Windows 需验证：无客户端、启动中、登录后、关闭、重启、端口/认证变化、应用先后启动。
+- 自签名证书策略隔离在专用 loopback connector；仍存在本机端口劫持风险，需 Windows 安全评审。
+- 真实 Tauri Event 只在 macOS 无状态变化场景/前端 mock 测试覆盖；Windows 真实事件未验证。
+- 桌面截图/拖拽、WebView 剪贴板/下载仍受 macOS 权限限制（阶段九遗留）。
+- `connected` 仅表示认证探测成功，不代表已登录/房间中/游戏中。
+- 无 tray/auto-start/updater/DB/真实战绩/红包/任何 LCU 写操作。
 
 ## 后续
 
-1. 有 GUI 权限的 Mac 人工验收窗口截图、拖拽缩放、Tauri WebView 剪贴板/下载。
-2. Windows 11 + WebView2 编译、NSIS/MSI 安装包、DPI/字体/下载验证。
-3. 阶段十：在 Rust 侧增加只读 LCU 服务边界与 IPC contract tests，再逐步接房间/对局事件；凭据不进入 Vue。
-4. 生产签名/公证/Updater 单独立项，不复制现有 macOS 配置。
+1. 在 Windows 实机完成阶段 10.1 全场景验证，修正 `sysinfo`/进程/HTTP 差异。
+2. 阶段 10.2 再接入只读 gameflow/房间；状态与连接状态分离，事件按 revision 消费。
+3. 增加本地假 LCU HTTPS 服务集成测试（auth/timeout/restart），再考虑真实客户端。
+4. 凭据保持 Rust 内存；日志/事件/测试不得出现 password/Authorization。

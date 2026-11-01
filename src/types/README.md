@@ -28,6 +28,9 @@
 - `desktop.ts`
   - `AppRuntime` / `AppHealth` / `DesktopAdapter`：浏览器与 Tauri 共用的桌面健康检查契约。
   - `DesktopServiceErrorShape`：清洗后的错误形状，不包含 Rust 堆栈。
+- `lcu.ts`
+  - `LcuConnectionStatus` / `LcuStatusDto` / `LcuAdapter`：Rust ↔ Vue 的只读连接契约。
+  - `source: real | unavailable | mock` 明确真实来源、平台不可用和浏览器 Mock。
 - `settings.ts`
   - `SettingKey`：`autoStart` / `autoRetry` / `soundEffects`。
   - `SettingsFlags`：三个设置开关的内存状态。

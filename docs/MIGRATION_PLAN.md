@@ -29,7 +29,8 @@
 - [x] Stage 8：全量视觉/交互回归、格式/审计/favicon 收尾与最终验收
 - [x] Stage 8.2：简体中文文案资源化（仅 zh-CN）
 - [x] Stage 9：Tauri 2 + Rust 桌面工程、IPC 与 macOS `.app`
-- [ ] Stage 10+：LCU、Windows 打包、托盘/开机启动/Updater、签名与发布
+- [x] Stage 10.1：Rust LCU 发现、只读连接、状态机、自动重连与 Mock 测试
+- [ ] Stage 10.2+：Windows 实机 LCU 验证、gameflow/房间、Windows 安装包、托盘/Updater、签名
 
 ## Stage 9 交付
 
@@ -41,6 +42,17 @@
 - CSP 与仅 `core:default` capability；无 Shell/FS/HTTP/Clipboard 插件/Updater。
 - 75 前端测试、103 构建模块、3 Rust 测试、cargo check/fmt、tauri dev、tauri build `.app` 通过。
 - 限制：完整 Xcode 未安装、DMG hdiutil 沙箱拒绝、桌面截图/剪贴板自动化权限不足；详见 `docs/PHASE9_TAURI_INTEGRATION.md`。
+
+## Stage 10.1 交付
+
+- `src-tauri/src/lcu/`：discovery、client、connection、monitor、models、error；命令 `lcu_get_connection_status`、`lcu_start_monitoring`、`lcu_stop_monitoring`；事件 `lcu://connection-status`。
+- Windows：`LeagueClientUx.exe` + lockfile + PID 校验；非 Windows 明确 `unsupported_platform`。
+- 只读：专用 loopback HTTPS、仅 `GET /riotclient/region-locale`；3s 超时；无 LCU 写操作。
+- 自签名 TLS：仅专用 connector 禁用验证，固定 127.0.0.1；未全局修改 TLS。
+- 状态机/监控：状态码、revision/updatedAt、generation、单任务、2s 轮询、500ms–5s 退避、stop/shutdown。
+- 前端：`types/lcu.ts`、`lcu.service.ts`、browser/tauri adapters、Pinia `lcuStatus`；无 UI 改动。
+- 测试：82 前端 / 106 构建模块 / 27 Rust；Tauri dev/release 在 macOS 返回 UnsupportedPlatform；Windows 未实机验证。
+- 文档：`docs/PHASE10_1_LCU_FOUNDATION.md`。
 
 ## Stage 8.2 交付
 
@@ -125,4 +137,4 @@
 
 ## 不在本阶段
 
-Tauri、Rust、LCU API、自动更新、正式 Windows 构建与真实游戏测试。
+阶段 10.1 不包含真实 LCU 实机验证、gameflow/房间、战绩、红包、写操作、Windows 构建、托盘/Updater、自动更新与真实游戏测试。

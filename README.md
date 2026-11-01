@@ -1,10 +1,10 @@
 # 海克斯大乱斗 · ARAM: Mayhem
 
-**Phase 9：Tauri 2 + Rust 桌面集成**
+**Phase 10.1：Rust LCU 连接基础**
 
-阶段九已在既有 Vue 3 工程上加入 Tauri 2 + Rust 桌面壳：Vite 1420、480×900 原生窗口、最小 capability/CSP、`app_health_check` IPC、浏览器/Tauri 双 adapter，以及可运行的 macOS `.app`。业务数据仍全部来自现有 Mock，没有接入真实 LCU。
+在阶段九 Tauri 桌面上新增 Rust LCU 发现、只读 HTTPS 探测、连接状态机、单任务自动重连、Tauri IPC/Event 和浏览器 Mock/Tauri 真实来源隔离。macOS 明确返回 `unsupported_platform`，不伪造真实客户端；Windows 条件代码尚未实机验证。
 
-阶段九 macOS 本地验收为**通过**；阶段八/8.2 的浏览器视觉、i18n 和 70 测试基线保持，当前新增到 **75 个前端测试 / 103 个构建模块**。详见 [阶段九实施记录](docs/PHASE9_TAURI_INTEGRATION.md)、[最终验收报告](docs/FINAL_ACCEPTANCE.md) 与 [i18n 实施记录](docs/ZH_CN_I18N_MIGRATION.md)。
+当前验收为 **开发完成，待 Windows 实机验证**。原有浏览器视觉、i18n 和 75 测试基线保持，当前达到 **82 个前端测试 / 106 个构建模块 / 27 个 Rust 测试**。详见 [阶段 10.1 实施记录](docs/PHASE10_1_LCU_FOUNDATION.md)、[阶段九实施记录](docs/PHASE9_TAURI_INTEGRATION.md) 与 [i18n 实施记录](docs/ZH_CN_I18N_MIGRATION.md)。
 
 当前结算数据是一份标注为 `isSharedFixture` 的静态示例，不冒充七场历史战绩各自的真实结算；`selectedMatchId` 仅保留导航上下文。设置页三个开关为内存演示状态，不接入操作系统、LCU 或真实音效。
 
@@ -55,7 +55,7 @@ pnpm tauri dev     # Vite 1420 + 原生 Tauri 窗口
 pnpm tauri build   # 生成 src-tauri/target/release/bundle/macos/ARAM Mayhem.app
 ```
 
-Tauri dev/build 的 `beforeDevCommand`/`beforeBuildCommand` 均使用 `pnpm`。浏览器模式与 Tauri 模式使用同一份 Vue 页面和 Mock 数据；桌面模式额外静默调用 `app_health_check` IPC，不增加可见 UI。
+Tauri dev/build 的 `beforeDevCommand`/`beforeBuildCommand` 均使用 `pnpm`。浏览器模式与 Tauri 模式使用同一份 Vue 页面和 Mock 数据；桌面模式额外静默调用 `app_health_check`、LCU 状态命令/事件，不增加可见 UI；macOS 的 LCU 状态应为 `unsupported_platform`。
 
 ## 2. 验收命令
 
@@ -65,8 +65,8 @@ pnpm check:baseline            # 核对原始 HTML 未被修改
 pnpm typecheck                 # Vue + TypeScript / Vite 配置类型检查
 pnpm lint                      # ESLint
 pnpm format:check              # 全仓 Prettier 检查
-pnpm test                      # Vitest（75 个测试）
-pnpm build                     # 类型检查 + 生产构建（103 模块）
+pnpm test                      # Vitest（82 个测试）
+pnpm build                     # 类型检查 + 生产构建（106 模块）
 pnpm check                     # baseline + typecheck + lint + test + build
 pnpm audit                     # 开发+生产依赖审计（当前 0 漏洞）
 pnpm audit --prod              # 生产依赖审计（当前 0）
@@ -78,9 +78,20 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 `pnpm install --frozen-lockfile` 在无 TTY 环境首次会要求确认清理旧 `node_modules`；CI 环境可用 `CI=true pnpm install --frozen-lockfile` 从锁文件重装。
 
-本阶段实际执行结果见 `docs/STATUS.md`；桌面环境、IPC 与已知限制见 `docs/PHASE9_TAURI_INTEGRATION.md`。
+本阶段实际执行结果见 `docs/STATUS.md`；阶段九桌面环境见 `docs/PHASE9_TAURI_INTEGRATION.md`；LCU 架构/风险见 `docs/PHASE10_1_LCU_FOUNDATION.md`。
 
-## 3. 阶段九：Tauri 2 + Rust
+## 3. 阶段十.1：LCU 连接基础
+
+- Rust 模块：`lcu/discovery`、`client`、`connection`、`monitor`、`models`、`error`；命令 `lcu_get_connection_status`/`lcu_start_monitoring`/`lcu_stop_monitoring`；事件 `lcu://connection-status`。
+- 发现：Windows `LeagueClientUx.exe` + lockfile/PID 校验；非 Windows 返回 `unsupported_platform`，不发起网络请求。
+- 只读：专用 loopback HTTPS client，仅 `GET /riotclient/region-locale`；自签名证书策略隔离在专用 connector。
+- 状态机：`not_running/discovering/connecting/connected/disconnected/reconnecting/error`；含 revision、updatedAt、generation。
+- 监控：单任务、2s 正常轮询、500ms–5s 退避、停止/应用退出清理；旧异步结果不可覆盖新状态。
+- 前端：`types/lcu.ts`、`services/lcu.service.ts`、browser/tauri adapters、Pinia `lcuStatus`；App 启动静默订阅/获取/启动，无 UI 改动。
+- 测试：82 前端 / 106 构建模块 / 27 Rust；Tauri dev/release 在 macOS 实测 `UnsupportedPlatform/Unavailable`。
+- Windows 未实机验证；交叉检查被缺失的 MSVC/`windows.h` 阻断。详见阶段 10.1 文档。
+
+## 3.1 阶段九：Tauri 2 + Rust
 
 - `@tauri-apps/api` / `@tauri-apps/cli` 2.12.4；Rust tauri 2.12.5、tauri-build 2.7.4、Rust 1.99.1。
 - `src-tauri/`：`main.rs`/`lib.rs`/`commands/app.rs`、`tauri.conf.json`、`capabilities/default.json`、品牌 icons。
@@ -93,7 +104,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - 验证：75 前端测试、103 构建模块、3 Rust 测试、`cargo check`、`cargo fmt`、`pnpm tauri dev`、`pnpm tauri build` 全部通过；release `.app` 约 10.57 MiB。
 - macOS 沙箱限制：完整 Xcode 未安装、DMG 的 `hdiutil` 被拒、桌面截图/剪贴板自动化无权限；详见阶段九文档。
 
-## 3.1 阶段八 / 8.2 完成内容
+## 3.2 阶段八 / 8.2 完成内容
 
 - 阶段 8.2：安装 `vue-i18n@11.4.16`，仅注册 `zh-CN`；新增 `src/i18n/index.ts`、`locales/zh-CN.ts`、`labels.ts`。
 - 公共 UI、首页、战绩、结算、工具、抽屉、设置、Toast 与无障碍文案全部迁移；组件统一 `useI18n({ useScope: 'global' })`。
@@ -113,7 +124,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - 阶段八未新增页面/业务功能；阶段 8.2 仅新增 `vue-i18n` 与 i18n 资源，未新增业务 Mock。
 - 最终验收结论：**有条件通过**，仅剩外部粘贴/真机安全区未人工验收；依赖审计已归零。
 
-## 3.1 阶段七完成内容
+## 3.3 阶段七完成内容
 
 - `src/features/settings/SettingsPage.vue`：完整迁移两张设置卡片、三行开关、版本与检查更新按钮。
 - `SettingToggle.vue`：原版 44×24 开关、紫色选中、白色滑块、分隔线与 hover；补充 `role="switch"`、`aria-label`、`aria-checked` 和仅键盘聚焦时出现的 focus ring。
@@ -125,7 +136,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - 新增设置 State/Mock/SSR 测试，测试总数从 59 增加到 67；构建模块 73 → 76。
 - 完成 320 / 375 / 390 / 430 / 480px、开关全开/全关对照；页面与原始 HTML 几何一致，无横向溢出。
 
-## 3.2 既有页面
+## 3.4 既有页面
 
 - 未连接页、应用壳、顶栏、底部导航（阶段 2）。
 - 首页、首页 Mock/规则状态（阶段 3）。
@@ -135,7 +146,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 ## 4. 尚未完成 / 后续阶段
 
-- 真实 LCU、Windows Tauri 安装包、数据库、托盘/开机启动、真实更新与桌面签名/公证（阶段十及以后）。
+- 真实 LCU 客户端连接（Windows 实机）、Windows 安装包、数据库、托盘/开机启动、真实更新与桌面签名/公证（阶段十.2 及以后）。
 - 全量业务 Mock 与 Service 接口。
 - 微信/QQ 等外部应用剪贴板粘贴人工验收；真机刘海/Home Indicator 安全区验收。
 - shadcn-vue 默认组件仍按需引入，未覆盖原版视觉。
@@ -158,6 +169,9 @@ src/features/settings/                设置页、设置开关（阶段 7）
 src/i18n/                             唯一 zh-CN 资源、初始化与 key 映射（阶段 8.2）
 src/services/image.service.ts         结算/分组截图生成 / 剪贴板 / 下载服务
 src/services/app.service.ts           浏览器/Tauri 运行时选择与健康检查
+src/services/lcu.service.ts           LCU 状态/监控的浏览器/Tauri 选择
+src/types/lcu.ts                      LCU 状态/IPC 契约
+src/adapters/                         browser / tauri 桌面与 LCU adapter
 src/adapters/                         browser / tauri 桌面适配器
 src/types/desktop.ts                  AppHealth / DesktopAdapter 契约
 src-tauri/                            Tauri 2 + Rust 桌面工程
@@ -174,6 +188,7 @@ docs/MIGRATION_PLAN.md                逐页面迁移清单
 docs/STATUS.md                        完成度与实际验证状态
 docs/FINAL_ACCEPTANCE.md              阶段八最终验收、审计与 Tauri/Rust/LCU 建议
 docs/PHASE9_TAURI_INTEGRATION.md      阶段九 Tauri/Rust 结构、IPC、测试与限制
+docs/PHASE10_1_LCU_FOUNDATION.md      阶段 10.1 LCU 发现、状态机、安全与限制
 docs/ZH_CN_I18N_MIGRATION.md          阶段 8.2 文案映射、职责调整与验收
 docs/verification/stage8/             全页面五宽度、三张真实 PNG 与审计证据
 docs/verification/stage8.2/           i18n 后五宽度、PNG 与基线差异
@@ -187,6 +202,7 @@ docs/verification/stage8.2/           i18n 后五宽度、PNG 与基线差异
 - `html2canvas-pro` 固定为 `2.5.0`（支持 Node >=16；`2.6.0` 要求 Node >=24）。
 - `vue-i18n` 固定为 `^11.4.16`；只注册 `zh-CN`，无英文包或语言切换。
 - `@tauri-apps/api` 2.12.4（运行时）与 `@tauri-apps/cli` 2.12.4（开发）；Rust 依赖见 `src-tauri/Cargo.toml`/`Cargo.lock`。
+- Rust LCU：`reqwest` 0.13（rustls）、`tokio`、`async-trait`；Windows 专用 `sysinfo` 0.40。LCU 认证只保留在 Rust 内存，不写入前端/日志/仓库。
 - Tauri 仅启用 `core:default` capability；未启用 Shell/FS/HTTP、Clipboard 插件、Updater 或自动更新。
 - macOS app 当前 bundle target 为 `app`；DMG 在当前沙箱被 `hdiutil` 拒绝，Windows target 未配置。
 - 结算与分组截图只使用浏览器 Clipboard API 与下载兜底，不接入 Tauri Clipboard 插件。
@@ -198,4 +214,5 @@ docs/verification/stage8.2/           i18n 后五宽度、PNG 与基线差异
 - 外部应用粘贴、真机安全区仍未人工验收。
 - Tauri WebView 内的剪贴板/下载与窗口拖拽未自动化验收（macOS 屏幕录制/辅助功能权限被拒）；浏览器剪贴板与下载已实测。
 - Windows Tauri 编译/安装包、真实 LCU、Tauri 托盘/开机启动/Updater 未实现。
+- LCU 真实发现/连接/重连只在 Windows 客户端环境中才能最终确认；macOS 仅验证 `unsupported_platform` 与模拟状态机。
 - i18n 后仍保留的硬编码中文仅为玩家/英雄/时间/队列等数据、Service 内部诊断、测试数据和注释；Vue 模板已无中文 UI 字面量。
