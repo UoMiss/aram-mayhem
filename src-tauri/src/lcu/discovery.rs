@@ -283,7 +283,17 @@ fn discover_windows() -> Result<Option<LcuClient>, LcuError> {
     if let Some(client) = discover_from_lockfiles(&ux_processes)? {
         return Ok(Some(client));
     }
-    discover_from_lockfiles(&client_processes)
+    if let Some(client) = discover_from_lockfiles(&client_processes)? {
+        return Ok(Some(client));
+    }
+
+    if ux_processes.is_empty() && client_processes.is_empty() {
+        Ok(None)
+    } else {
+        Err(LcuError::discovery_failed(
+            "League client is running but LCU credentials were not found",
+        ))
+    }
 }
 
 #[cfg(windows)]
