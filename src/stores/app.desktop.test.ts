@@ -81,7 +81,7 @@ describe('Tauri app store real LCU state', () => {
     }
   })
 
-  it('ignores an older revision and clears bridge error on real connected', () => {
+  it('ignores an older revision and keeps bridge errors until explicitly cleared', () => {
     const app = useAppStore()
     app.setLcuStatus(status({ revision: 5 }))
     app.setLcuStatus(status({ revision: 4, status: 'disconnected' }))
@@ -90,6 +90,8 @@ describe('Tauri app store real LCU state', () => {
     app.setLcuError('lcu.subscribe_failed')
     expect(app.lcuBridgeError).toBe('lcu.subscribe_failed')
     app.setLcuStatus(status({ revision: 6 }))
+    expect(app.lcuBridgeError).toBe('lcu.subscribe_failed')
+    app.clearLcuError()
     expect(app.lcuBridgeError).toBeNull()
   })
 })

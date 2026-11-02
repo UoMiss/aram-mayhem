@@ -142,7 +142,6 @@ export const useAppStore = defineStore('app', () => {
   function setLcuStatus(status: LcuStatusDto) {
     if (lcuStatus.value && status.revision < lcuStatus.value.revision) return
     lcuStatus.value = status
-    if (status.status === 'connected') lcuBridgeError.value = null
   }
 
   /** 前端桥接失败码；不包含 Rust 堆栈或任何认证信息。 */
