@@ -110,3 +110,11 @@
 - 测试：102 前端 / 47 Rust。
 - Validation：run `41404607342`；Release：run `41405146532`；Artifact `13123466431`；SHA-256 `14b022f98067e369849304c9d88d8d8c2b7e8e1e3dc2e0e8089213a015ab3705`。
 - Windows 真实客户端实机连接未执行，阶段 10.1 不能正式通过。
+
+## LCU 凭据发现改进
+
+- args-first：同一进程内 `--app-port` + `--remoting-auth-token`；PID/name 归属校验。
+- lockfile 回退：Windows 共享读取、3 次重试、空内容/占用不算连接、PID 校验。
+- 无 WMIC、无凭据缓存、无日志 token。
+- macOS Rust 50 通过；Windows-only 共享锁测试待 CI；前端 102 通过。
+- Windows 真实启动参数与 HTTPS probe 尚未确认。

@@ -238,3 +238,10 @@ Windows CI 已拆分为 Validation 和手动 Release；热缓存 Release 4m19（
 - 修复版 Windows Artifact：id `13123466431`，安装包 4,314,581 bytes，SHA-256 `14b022f98067e369849304c9d88d8d8c2b7e8e1e3dc2e0e8089213a015ab3705`。
 - 详情：[LCU_CONNECTION_STATUS_FIX.md](docs/LCU_CONNECTION_STATUS_FIX.md)。
 - Windows 真实客户端实机复测仍未执行，不能仅凭 CI 判定阶段 10.1 正式通过。
+
+## LCU 凭据发现改进
+
+- 进程启动参数优先（同一 PID 的 `--app-port` + `--remoting-auth-token`），lockfile 共享读取回退。
+- 不使用 WMIC；不复制参考项目的 TLS 关闭/凭据缓存；不输出 token。
+- 详情：[LCU_CREDENTIAL_DISCOVERY_FIX.md](docs/LCU_CREDENTIAL_DISCOVERY_FIX.md)。
+- Windows 实机参数/HTTPS 探测仍待验证，不能仅凭 CI 判定真实连接通过。
