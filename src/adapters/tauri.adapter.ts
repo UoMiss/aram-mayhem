@@ -31,8 +31,8 @@ export const tauriAdapter: DesktopAdapter = {
   },
 }
 
-function lcuIpcError(): LcuServiceError {
-  return new LcuServiceError('lcu.ipc_failed', 'LCU IPC failed')
+function lcuIpcError(code = 'lcu.ipc_failed'): LcuServiceError {
+  return new LcuServiceError(code, 'LCU IPC failed')
 }
 
 /** The only frontend module that knows the Rust LCU command/event names. */
@@ -41,28 +41,28 @@ export const tauriLcuAdapter: LcuAdapter = {
     try {
       return await invoke<LcuStatusDto>('lcu_get_connection_status')
     } catch {
-      throw lcuIpcError()
+      throw lcuIpcError('lcu.status_failed')
     }
   },
   async startMonitoring() {
     try {
       return await invoke<LcuStatusDto>('lcu_start_monitoring')
     } catch {
-      throw lcuIpcError()
+      throw lcuIpcError('lcu.start_failed')
     }
   },
   async stopMonitoring() {
     try {
       return await invoke<LcuStatusDto>('lcu_stop_monitoring')
     } catch {
-      throw lcuIpcError()
+      throw lcuIpcError('lcu.stop_failed')
     }
   },
   async subscribe(listener: LcuStatusListener): Promise<LcuUnlisten> {
     try {
       return await listen<LcuStatusDto>(LCU_STATUS_EVENT, (event) => listener(event.payload))
     } catch {
-      throw lcuIpcError()
+      throw lcuIpcError('lcu.subscribe_failed')
     }
   },
 }

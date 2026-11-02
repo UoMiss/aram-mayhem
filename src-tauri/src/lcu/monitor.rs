@@ -349,6 +349,10 @@ impl LcuManagerRef {
             }
         };
         if let Some(status) = changed {
+            println!(
+                "[lcu_status] status={:?} source={:?} code={:?} monitoring={}",
+                status.status, status.source, status.code, status.monitoring
+            );
             (self.callback)(status);
         }
     }

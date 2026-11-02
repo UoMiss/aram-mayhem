@@ -31,21 +31,31 @@ const gameModeLabel = computed(() => t(HOME_GAME_MODE_KEYS[app.homeView.gameMode
       {{ t('connection.connected') }}
     </h2>
 
-    <div class="mb-3 flex items-center gap-3">
-      <span class="text-xl font-bold text-purple-400">{{ app.homeView.summonerName }}</span>
-      <div
-        class="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1"
-      >
-        <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400"></span>
-        <span class="text-xs font-bold text-emerald-400">{{ roomPhaseLabel }}</span>
-      </div>
-    </div>
-
-    <p class="mb-6 flex items-center gap-2 text-sm text-slate-400">
-      <span>{{ gameModeLabel }}</span>
-      <span class="text-slate-600">·</span>
-      <span id="home-rule-text" class="text-purple-300">{{ ruleLabel }}</span>
+    <p
+      v-if="app.isRealLcuConnected"
+      class="mb-6 max-w-[240px] text-center text-xs leading-relaxed text-slate-400"
+    >
+      {{ t('home.realDataPending') }}
     </p>
+
+    <template v-else>
+      <p class="mb-2 text-[10px] tracking-wide text-slate-500">{{ t('connection.demoData') }}</p>
+      <div class="mb-3 flex items-center gap-3">
+        <span class="text-xl font-bold text-purple-400">{{ app.homeView.summonerName }}</span>
+        <div
+          class="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1"
+        >
+          <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400"></span>
+          <span class="text-xs font-bold text-emerald-400">{{ roomPhaseLabel }}</span>
+        </div>
+      </div>
+
+      <p class="mb-6 flex items-center gap-2 text-sm text-slate-400">
+        <span>{{ gameModeLabel }}</span>
+        <span class="text-slate-600">·</span>
+        <span id="home-rule-text" class="text-purple-300">{{ ruleLabel }}</span>
+      </p>
+    </template>
 
     <p class="mb-10 max-w-[200px] text-center text-[11px] leading-relaxed text-slate-500">
       {{ t('home.settlementNote') }}<br />{{ t('home.trayNote') }}

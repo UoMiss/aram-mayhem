@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { isTauri } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { MATCH_HISTORY } from '@/mocks/history'
 import { createMockHomeProfile, INITIAL_SCORE_RULE } from '@/mocks/home'
@@ -36,13 +37,31 @@ export const useAppStore = defineStore('app', () => {
   const settings = ref<SettingsFlags>(createDefaultSettings())
   const lcuStatus = ref<LcuStatusDto | null>(null)
   const gameflowSnapshot = ref<GameflowSnapshot | null>(null)
+  const lcuBridgeError = ref<string | null>(null)
 
   const toastMessage = ref('')
   const toastTone = ref<ToastTone>('success')
   const toastVisible = ref(false)
 
-  const isConnected = computed(() => connectionPhase.value === 'connected')
-  const isConnecting = computed(() => connectionPhase.value === 'connecting')
+  const isDesktopRuntime = computed(() => isTauri())
+  const isRealLcuConnected = computed(
+    () =>
+      isDesktopRuntime.value &&
+      lcuStatus.value?.source === 'real' &&
+      lcuStatus.value.simulated === false &&
+      lcuStatus.value.status === 'connected',
+  )
+  const isConnected = computed(() =>
+    isDesktopRuntime.value ? isRealLcuConnected.value : connectionPhase.value === 'connected',
+  )
+  const isConnecting = computed(() => {
+    if (!isDesktopRuntime.value) return connectionPhase.value === 'connecting'
+    return (
+      lcuStatus.value?.status === 'discovering' ||
+      lcuStatus.value?.status === 'connecting' ||
+      lcuStatus.value?.status === 'reconnecting'
+    )
+  })
 
   /** 首页只组合业务数据；中文展示文本由 HomePage 通过 i18n 取得。 */
   const homeView = computed<HomeViewModel>(() => ({
@@ -70,6 +89,7 @@ export const useAppStore = defineStore('app', () => {
 
   /** 演示连接：1500ms 后进入已连接状态，重复点击会被忽略。 */
   function connect() {
+    if (isDesktopRuntime.value) return
     if (connectionPhase.value !== 'disconnected') return
 
     hideToast()
@@ -83,6 +103,7 @@ export const useAppStore = defineStore('app', () => {
 
   /** 回到未连接层；同时取消尚未完成的模拟连接。 */
   function disconnect() {
+    if (isDesktopRuntime.value) return
     if (connectTimer) {
       clearTimeout(connectTimer)
       connectTimer = null
@@ -117,9 +138,20 @@ export const useAppStore = defineStore('app', () => {
     settings.value[key] = value
   }
 
-  /** 桌面 LCU 状态与首页模拟连接分离；不用于改变现有 UI。 */
+  /** 桌面 LCU 状态；只接受不比当前旧的快照。 */
   function setLcuStatus(status: LcuStatusDto) {
+    if (lcuStatus.value && status.revision < lcuStatus.value.revision) return
     lcuStatus.value = status
+    if (status.status === 'connected') lcuBridgeError.value = null
+  }
+
+  /** 前端桥接失败码；不包含 Rust 堆栈或任何认证信息。 */
+  function setLcuError(code: string) {
+    lcuBridgeError.value = code
+  }
+
+  function clearLcuError() {
+    lcuBridgeError.value = null
   }
 
   /** Only newer gameflow snapshots may overwrite the store. */
@@ -163,6 +195,9 @@ export const useAppStore = defineStore('app', () => {
     selectedMatch,
     settings,
     lcuStatus,
+    lcuBridgeError,
+    isDesktopRuntime,
+    isRealLcuConnected,
     gameflowSnapshot,
     toastMessage,
     toastTone,
@@ -177,6 +212,8 @@ export const useAppStore = defineStore('app', () => {
     setHistoryFilter,
     setSetting,
     setLcuStatus,
+    setLcuError,
+    clearLcuError,
     setGameflowSnapshot,
     openMatchDetail,
     notify,

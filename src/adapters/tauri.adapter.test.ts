@@ -104,7 +104,7 @@ describe('tauri LCU adapter', () => {
 
     await expect(tauriLcuAdapter.getConnectionStatus()).rejects.toMatchObject({
       name: 'LcuServiceError',
-      code: 'lcu.ipc_failed',
+      code: 'lcu.status_failed',
       message: 'LCU IPC failed',
     })
     expect(new LcuServiceError('lcu.ipc_failed', 'LCU IPC failed')).toBeInstanceOf(Error)

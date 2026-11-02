@@ -28,6 +28,15 @@ const zhCN = {
     reconnect: '重新连接',
     stillDisconnected: '仍然未连接？尝试以管理员身份重新打开助手。',
     retryHint: '连接详情 · 每 {seconds} 秒自动重试',
+    notRunning: '未检测到英雄联盟客户端',
+    discovering: '正在检测客户端...',
+    disconnected: 'LCU 连接已断开',
+    error: 'LCU 连接失败',
+    unsupported: '当前平台不支持真实 LCU 连接',
+    retryDesktop: '重新检测',
+    autoDetect: '客户端启动后会自动检测并连接',
+    desktopHint: '这是真实的 LCU 连接状态；客户端启动或关闭后会自动更新。',
+    demoData: '当前首页为演示数据',
   },
   home: {
     inRoom: '房间中',
@@ -36,6 +45,7 @@ const zhCN = {
     trayNote: '关闭窗口可收进托盘。',
     previousMatch: '上一局',
     history: '历史对局',
+    realDataPending: '真实玩家资料尚未接入',
   },
   rules: {
     none: '未选择规则',

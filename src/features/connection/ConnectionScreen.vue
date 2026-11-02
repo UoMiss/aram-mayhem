@@ -1,16 +1,78 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { LcuServiceError } from '@/services/desktop-error'
+import { startLcuMonitoring } from '@/services/lcu.service'
 import { useAppStore } from '@/stores/app'
 
 const app = useAppStore()
 const { t } = useI18n({ useScope: 'global' })
 
-/** 原版每 5 秒循环的自动重试倒计时。 */
+/** 原版每 5 秒循环的自动重试倒计时；桌面模式由 Rust 自动重试。 */
 const retrySeconds = ref(5)
 let retryTimer: ReturnType<typeof setInterval> | null = null
 
+const isDesktop = computed(() => app.isDesktopRuntime)
+
+const statusText = computed(() => {
+  if (!isDesktop.value) return t('connection.waiting')
+  switch (app.lcuStatus?.status) {
+    case 'not_running':
+      return t('connection.notRunning')
+    case 'discovering':
+      return t('connection.discovering')
+    case 'connecting':
+    case 'reconnecting':
+      return t('connection.connecting')
+    case 'disconnected':
+      return t('connection.disconnected')
+    case 'error':
+      return t('connection.error')
+    case 'unsupported_platform':
+      return t('connection.unsupported')
+    case 'connected':
+      return t('connection.connected')
+    default:
+      return t('connection.discovering')
+  }
+})
+
+const buttonLabel = computed(() => {
+  if (app.isConnecting) return t('connection.connecting')
+  return isDesktop.value ? t('connection.retryDesktop') : t('connection.reconnect')
+})
+
+const hintText = computed(() =>
+  isDesktop.value ? t('connection.desktopHint') : t('connection.stillDisconnected'),
+)
+
+const retryHint = computed(() =>
+  isDesktop.value
+    ? t('connection.autoDetect')
+    : t('connection.retryHint', { seconds: retrySeconds.value }),
+)
+
+function diagnosticCode(error: unknown): string {
+  return error instanceof LcuServiceError ? error.code : 'lcu.retry_failed'
+}
+
+async function onReconnect() {
+  if (!isDesktop.value) {
+    app.connect()
+    return
+  }
+
+  app.clearLcuError()
+  try {
+    const status = await startLcuMonitoring()
+    app.setLcuStatus(status)
+  } catch (error) {
+    app.setLcuError(diagnosticCode(error))
+  }
+}
+
 onMounted(() => {
+  if (isDesktop.value) return
   retryTimer = setInterval(() => {
     retrySeconds.value = retrySeconds.value <= 1 ? 5 : retrySeconds.value - 1
   }, 1000)
@@ -40,12 +102,15 @@ onUnmounted(() => {
 
       <div class="mt-4 space-y-2 text-center">
         <h2 class="text-2xl font-black tracking-wide text-white">ARAM: Mayhem</h2>
-        <p class="text-sm font-medium text-slate-300">{{ t('connection.waiting') }}</p>
+        <p class="text-sm font-medium text-slate-300">{{ statusText }}</p>
       </div>
 
       <div class="mt-2 max-w-xs space-y-1 text-center text-xs leading-relaxed text-slate-400">
         <p>{{ t('connection.autoConnect') }}</p>
         <p>{{ t('connection.beforePick') }}</p>
+        <p v-if="app.lcuBridgeError" class="text-rose-300">
+          {{ t('connection.error') }} · {{ app.lcuBridgeError }}
+        </p>
       </div>
 
       <div class="mt-4 flex items-center justify-center gap-2 py-1">
@@ -59,10 +124,10 @@ onUnmounted(() => {
           type="button"
           class="flex-1 cursor-pointer rounded-xl border border-purple-500/40 bg-purple-950/40 px-4 py-2.5 text-center text-sm font-medium text-purple-200 shadow-lg transition-all hover:bg-purple-900/50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
           :disabled="app.isConnecting"
-          @click="app.connect()"
+          @click="onReconnect"
         >
           <i v-if="app.isConnecting" class="fa-solid fa-spinner fa-spin mr-2"></i>
-          {{ app.isConnecting ? t('connection.connecting') : t('connection.reconnect') }}
+          {{ buttonLabel }}
         </button>
         <button
           type="button"
@@ -77,7 +142,7 @@ onUnmounted(() => {
         class="mt-2 w-full max-w-xs pt-1 text-center leading-none"
         :class="{ 'pb-0.5': !app.showDetails }"
       >
-        <p class="text-xs text-slate-400">{{ t('connection.stillDisconnected') }}</p>
+        <p class="text-xs text-slate-400">{{ hintText }}</p>
 
         <button
           type="button"
@@ -90,7 +155,7 @@ onUnmounted(() => {
             class="fa-solid fa-caret-right transition-transform duration-200"
             :class="{ 'rotate-90': app.showDetails }"
           ></i>
-          <span>{{ t('connection.retryHint', { seconds: retrySeconds }) }}</span>
+          <span>{{ retryHint }}</span>
         </button>
 
         <div
@@ -108,24 +173,37 @@ onUnmounted(() => {
             </div>
             <span class="text-slate-500 select-none">lcu-connector.sh</span>
           </div>
-          <div class="space-y-1 text-slate-300">
-            <p><span class="text-purple-400">[SYS]</span> Init LCU Client Listener...</p>
+          <div v-if="isDesktop" class="space-y-1 text-slate-300">
+            <p><span class="text-purple-400">[SYS]</span> Real LCU status listener...</p>
             <p>
-              <span class="text-emerald-400">[PORT]</span> Target Port:
-              <span class="text-amber-300">2999</span>
+              <span class="text-emerald-400">[SOURCE]</span>
+              <span class="text-amber-300">{{ app.lcuStatus?.source ?? 'unknown' }}</span>
             </p>
             <p>
-              <span class="text-blue-400">[POLL]</span> Status:
-              <span class="text-amber-400">
-                {{ app.isConnecting ? 'Connecting LCU API...' : 'Polling LCU API...' }}
-              </span>
+              <span class="text-blue-400">[STATUS]</span>
+              <span class="text-amber-400">{{ statusText }}</span>
             </p>
-            <p class="text-rose-400">
-              <span class="text-rose-500">[ERR]</span> Process 'LeagueClient.exe' NOT found.
+            <p v-if="app.lcuStatus?.code">
+              <span class="text-rose-400">[CODE]</span>
+              <span class="text-rose-300">{{ app.lcuStatus.code }}</span>
+            </p>
+            <p v-if="app.lcuBridgeError">
+              <span class="text-rose-400">[BRIDGE]</span>
+              <span class="text-rose-300">{{ app.lcuBridgeError }}</span>
             </p>
             <p class="text-[10px] text-slate-500">
-              $ retrying in <span>{{ retrySeconds }}</span
-              >s...
+              $ {{ t('connection.autoDetect') }}
+              <span class="terminal-cursor font-bold text-emerald-400">_</span>
+            </p>
+          </div>
+          <div v-else class="space-y-1 text-slate-300">
+            <p><span class="text-purple-400">[MOCK]</span> Browser demo connection</p>
+            <p>
+              <span class="text-blue-400">[STATE]</span>
+              <span class="text-amber-400">{{ app.connectionPhase }}</span>
+            </p>
+            <p class="text-[10px] text-slate-500">
+              Mock only; no real LCU request is sent.
               <span class="terminal-cursor font-bold text-emerald-400">_</span>
             </p>
           </div>

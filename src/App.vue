@@ -4,6 +4,7 @@ import AppShell from '@/components/layout/AppShell.vue'
 import AppToast from '@/components/feedback/AppToast.vue'
 import ConnectionScreen from '@/features/connection/ConnectionScreen.vue'
 import { getAppHealth } from '@/services/app.service'
+import { LcuServiceError } from '@/services/desktop-error'
 import {
   getGameflowSnapshot,
   getLcuConnectionStatus,
@@ -17,6 +18,11 @@ import {
 import { useAppStore } from '@/stores/app'
 
 const app = useAppStore()
+
+function diagnosticCode(error: unknown, fallback: string): string {
+  return error instanceof LcuServiceError ? error.code : fallback
+}
+
 let lcuUnlisten: (() => void) | undefined
 let gameflowUnlisten: (() => void) | undefined
 let disposed = false
@@ -33,16 +39,17 @@ onMounted(() => {
         return
       }
       lcuUnlisten = unlisten
-    } catch {
-      // A failed desktop subscription is non-fatal; existing UI stays on Mock state.
+      app.clearLcuError()
+    } catch (error) {
+      app.setLcuError(diagnosticCode(error, 'lcu.subscribe_failed'))
     }
 
     try {
       const status = await getLcuConnectionStatus()
       if (disposed) return
       app.setLcuStatus(status)
-    } catch {
-      // No connected status is fabricated when the underlying source is unavailable.
+    } catch (error) {
+      app.setLcuError(diagnosticCode(error, 'lcu.status_failed'))
     }
 
     try {
@@ -52,8 +59,8 @@ onMounted(() => {
         return
       }
       app.setLcuStatus(status)
-    } catch {
-      // Monitoring failure is non-fatal; the last real status is retained.
+    } catch (error) {
+      app.setLcuError(diagnosticCode(error, 'lcu.start_failed'))
     }
   })()
 

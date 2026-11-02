@@ -20,3 +20,6 @@ src-tauri/Cargo.lock
 
 # Git attributes are not a Prettier-supported format
 .gitattributes
+
+# Large external community API dump; not a source file
+/docs/LCU_API_完整文档.md
