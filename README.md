@@ -230,3 +230,11 @@ docs/verification/stage8.2/           i18n 后五宽度、PNG 与基线差异
 ## CI 构建加速
 
 Windows CI 已拆分为 Validation 和手动 Release；热缓存 Release 4m19（基线 11m42），Release 前端只构建一次，Artifact SHA-256 `26916b588de478350d7444cc454b9a74dafcecef710e34c3d2e3ac2bcdb02f48`。详见 [CI 优化记录](docs/CI_OPTIMIZATION.md)。
+
+## LCU 真实连接状态修复
+
+- 浏览器继续使用 Mock；Windows Tauri 仅在 `source=real` 且 `status=connected` 时进入首页。
+- 连接页 Tauri 重试调用真实监控，不再执行 1.5s Mock。
+- 修复版 Windows Artifact：id `13123466431`，安装包 4,314,581 bytes，SHA-256 `14b022f98067e369849304c9d88d8d8c2b7e8e1e3dc2e0e8089213a015ab3705`。
+- 详情：[LCU_CONNECTION_STATUS_FIX.md](docs/LCU_CONNECTION_STATUS_FIX.md)。
+- Windows 真实客户端实机复测仍未执行，不能仅凭 CI 判定阶段 10.1 正式通过。

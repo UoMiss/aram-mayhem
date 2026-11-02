@@ -1,6 +1,6 @@
 # LCU API 一致性与首页连接状态专项审计
 
-**审计日期：** 2026-11-02  
+**审计日期：** 2026-11-02
 **范围：** 只读源码、配置和项目内 LCU 文档；未修改业务代码、UI、Mock、Tauri 安全配置，未推送 GitHub。
 
 结论先行：**现有 Rust LCU 连接链路已经注册并有前端启动调用，但首页/连接页从未消费 `lcuStatus`。真实 Windows 上即使 Rust 已经 `connected`，UI 仍会停留在 `connectionPhase = 'disconnected'` 的「未连接」页。**
@@ -298,9 +298,9 @@ monitor.rs:250-309  discover → probe → connected/error
 
 ### Q1. 项目内 LCU API 文档覆盖当前使用的接口吗？
 
-**路径覆盖：是。** `region-locale`、`gameflow-phase`、`gameflow session`、`lobby`、`champ-select` 均有 GET 路径定义。  
-**契约覆盖：否。** 上述接口的响应 Schema 在文档中均明确写“没有可可靠确认的统一响应 Schema”。  
-**WebSocket：否。** 文档没有 `OnJsonApiEvent`/WAMP 事件帧。  
+**路径覆盖：是。** `region-locale`、`gameflow-phase`、`gameflow session`、`lobby`、`champ-select` 均有 GET 路径定义。
+**契约覆盖：否。** 上述接口的响应 Schema 在文档中均明确写“没有可可靠确认的统一响应 Schema”。
+**WebSocket：否。** 文档没有 `OnJsonApiEvent`/WAMP 事件帧。
 **lockfile/进程：否。** 文档只给一般机制，没有格式、进程名或路径。
 
 ### Q2. Rust 真正按照文档接入 LCU API 吗？
@@ -355,8 +355,8 @@ Rust probe 成功
   → ConnectionScreen 一直显示
 ```
 
-即使 Rust 的 Windows discovery/probe 完全正常，页面也不会自动切到首页。  
-次高可能：P1 静默错误（命令/事件失败没有可见信息）；P2 Windows discovery/probe 实际失败。  
+即使 Rust 的 Windows discovery/probe 完全正常，页面也不会自动切到首页。
+次高可能：P1 静默错误（命令/事件失败没有可见信息）；P2 Windows discovery/probe 实际失败。
 **不能在没有 Windows 实机日志的情况下把 P2 说成确定根因。**
 
 ---

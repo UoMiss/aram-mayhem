@@ -87,3 +87,29 @@
 3. 关闭 LOL → disconnected → 连接页自动恢复。
 4. 重启 LOL（不重启 ARAM）→ 自动重连。
 5. 若失败，先看 `[lcu_status]` 与 `lcuStatus.code`，再决定是否修改 discovery/probe。
+
+## Windows CI 与 Artifact
+
+- Commit SHA：`11fe3f01ac02397eca1981a5348194659754e01c`
+- Validation：https://github.com/UoMiss/aram-mayhem/actions/runs/41404607342
+  - 3m49；102 前端测试、47 Rust 测试、audit；通过
+- Release：https://github.com/UoMiss/aram-mayhem/actions/runs/41405146532
+  - 4m29；Rust cache full match；通过
+- Artifact：`aram-mayhem-windows-x64`（id `13123466431`）
+- 安装包：`aram-mayhem-windows-x64-setup.exe`
+- 大小：**4,314,581 bytes**
+- SHA-256：
+
+```text
+14b022f98067e369849304c9d88d8d8c2b7e8e1e3dc2e0e8089213a015ab3705
+```
+
+- 下载页：https://github.com/UoMiss/aram-mayhem/actions/runs/41405146532/artifacts/13123466431
+- 未签名、未创建 GitHub Release。
+- CI 只证明编译/测试/NSIS；**不证明 Windows 真实 LCU 已连接**。
+
+## 验收状态
+
+- 代码/自动化/Windows Release 构建：通过。
+- Windows 10/11 + LOL 客户端实机连接：**未执行，不能判定正式通过阶段 10.1**。
+- 下一步必须按上面的实机顺序验证；若失败，先收集 `[lcu_status]` 和 `lcuStatus.code`，不要先改 discovery/probe。

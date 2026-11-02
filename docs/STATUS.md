@@ -102,3 +102,11 @@
 - Release：`windows-release.yml`（手动），热缓存 4m19，基线 11m42；前端只构建一次。
 - Artifact：`aram-mayhem-windows-x64` id `13087243783`；NSIS 4,313,373 bytes；SHA-256 `26916b588de478350d7444cc454b9a74dafcecef710e34c3d2e3ac2bcdb02f48`。
 - 详情：[CI_OPTIMIZATION.md](CI_OPTIMIZATION.md)。
+
+## LCU 真实连接状态修复
+
+- 已完成浏览器 Mock / Tauri 真实 LCU 状态分流；Tauri `isConnected` 只接受 `source=real`、`simulated=false`、`status=connected`。
+- AppShell 自动切换；连接页 Tauri 重试改为真实 `startLcuMonitoring`；Header/Home 不再冒充真实数据。
+- 测试：102 前端 / 47 Rust。
+- Validation：run `41404607342`；Release：run `41405146532`；Artifact `13123466431`；SHA-256 `14b022f98067e369849304c9d88d8d8c2b7e8e1e3dc2e0e8089213a015ab3705`。
+- Windows 真实客户端实机连接未执行，阶段 10.1 不能正式通过。
