@@ -251,12 +251,18 @@ pub fn discover() -> Result<Option<LcuClient>, LcuError> {
 
 #[cfg(windows)]
 fn discover_windows() -> Result<Option<LcuClient>, LcuError> {
-    use sysinfo::{ProcessesToUpdate, System};
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 
     let mut system = System::new_all().map_err(|_| {
         LcuError::discovery_failed("failed to initialize Windows process discovery")
     })?;
-    system.refresh_processes(ProcessesToUpdate::All, true);
+    // `new_all` loads everything, but this explicit refresh guarantees command lines
+    // (and exe paths) are populated for processes that appeared during startup.
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::everything(),
+    );
 
     let mut ux_processes = Vec::new();
     let mut client_processes = Vec::new();

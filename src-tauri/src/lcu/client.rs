@@ -3,9 +3,27 @@ use crate::lcu::error::{LcuError, LcuErrorCode};
 use reqwest::{Client, StatusCode};
 use std::time::Duration;
 
-const LCU_PROBE_PATH: &str = "/riotclient/region-locale";
+const LCU_PROBE_PATHS: &[&str] = &[
+    "/riotclient/region-locale",
+    "/lol-summoner/v1/current-summoner",
+];
 #[allow(dead_code)]
 const LCU_TIMEOUT: Duration = Duration::from_secs(3);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProbeDisposition {
+    Connected,
+    TryNext,
+    AuthenticationFailed,
+}
+
+fn classify_probe_status(status: StatusCode) -> ProbeDisposition {
+    match status {
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => ProbeDisposition::AuthenticationFailed,
+        status if status.is_success() => ProbeDisposition::Connected,
+        _ => ProbeDisposition::TryNext,
+    }
+}
 
 /// Dedicated local HTTPS connector for the LCU.
 ///
@@ -31,37 +49,52 @@ impl LcuHttpClient {
         Ok(Self { client })
     }
 
-    /// Read-only probe. Only `/riotclient/region-locale` is requested; no game state writes.
+    /// Read-only probe. Tries a no-user-info endpoint first, then the reference
+    /// project's current-summoner endpoint as a login-phase fallback. Never writes.
     #[allow(dead_code)]
     pub async fn probe(&self, endpoint: &LcuClient) -> Result<(), LcuError> {
-        let url = format!("{}{}", endpoint.endpoint(), LCU_PROBE_PATH);
-        let response = self
-            .client
-            .get(url)
-            .basic_auth("riot", Some(endpoint.password()))
-            .send()
-            .await
-            .map_err(map_reqwest_error)?;
+        let mut last_error = None;
+        for path in LCU_PROBE_PATHS {
+            let url = format!("{}{}", endpoint.endpoint(), path);
+            let response = self
+                .client
+                .get(url)
+                .basic_auth("riot", Some(endpoint.password()))
+                .send()
+                .await
+                .map_err(map_reqwest_error)?;
 
-        match response.status() {
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(LcuError::new(
-                LcuErrorCode::AuthenticationFailed,
-                "LCU authentication failed",
-            )),
-            status if !status.is_success() => Err(LcuError::new(
-                LcuErrorCode::HttpStatus,
-                "LCU returned an unexpected status",
-            )),
-            _ => {
-                let _: serde_json::Value = response.json().await.map_err(|_| {
-                    LcuError::new(
-                        LcuErrorCode::InvalidResponse,
-                        "LCU returned a malformed response",
-                    )
-                })?;
-                Ok(())
+            match classify_probe_status(response.status()) {
+                ProbeDisposition::AuthenticationFailed => {
+                    return Err(LcuError::new(
+                        LcuErrorCode::AuthenticationFailed,
+                        "LCU authentication failed",
+                    ));
+                }
+                ProbeDisposition::TryNext => {
+                    last_error = Some(LcuError::new(
+                        LcuErrorCode::HttpStatus,
+                        "LCU probe endpoint was unavailable",
+                    ));
+                    continue;
+                }
+                ProbeDisposition::Connected => match response.json::<serde_json::Value>().await {
+                    Ok(_) => return Ok(()),
+                    Err(_) => {
+                        last_error = Some(LcuError::new(
+                            LcuErrorCode::InvalidResponse,
+                            "LCU returned a malformed response",
+                        ));
+                    }
+                },
             }
         }
+        Err(last_error.unwrap_or_else(|| {
+            LcuError::new(
+                LcuErrorCode::InvalidResponse,
+                "LCU probe endpoints were unavailable",
+            )
+        }))
     }
 
     /// Read-only GET for a known LCU endpoint. Path is validated to start with `/`.
@@ -173,5 +206,39 @@ mod tests {
     #[test]
     fn http_client_builds_without_global_tls_mutation() {
         assert!(LcuHttpClient::new().is_ok());
+    }
+
+    #[test]
+    fn probe_classifies_auth_failures_without_retrying() {
+        assert_eq!(
+            classify_probe_status(StatusCode::UNAUTHORIZED),
+            ProbeDisposition::AuthenticationFailed
+        );
+        assert_eq!(
+            classify_probe_status(StatusCode::FORBIDDEN),
+            ProbeDisposition::AuthenticationFailed
+        );
+    }
+
+    #[test]
+    fn probe_tries_next_endpoint_for_404_and_5xx() {
+        assert_eq!(
+            classify_probe_status(StatusCode::NOT_FOUND),
+            ProbeDisposition::TryNext
+        );
+        assert_eq!(
+            classify_probe_status(StatusCode::INTERNAL_SERVER_ERROR),
+            ProbeDisposition::TryNext
+        );
+        assert_eq!(
+            classify_probe_status(StatusCode::NO_CONTENT),
+            ProbeDisposition::Connected
+        );
+    }
+
+    #[test]
+    fn probe_has_region_locale_and_summoner_fallback() {
+        assert_eq!(LCU_PROBE_PATHS[0], "/riotclient/region-locale");
+        assert_eq!(LCU_PROBE_PATHS[1], "/lol-summoner/v1/current-summoner");
     }
 }
