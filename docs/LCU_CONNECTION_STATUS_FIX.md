@@ -57,7 +57,7 @@
 - 新增 `src/stores/app.desktop.test.ts`（7）。
 - 新增 `src/App.desktop.test.ts`（5）。
 - 当前：19 文件 / **102 前端测试**。
-- Rust：**50 测试**（macOS；Windows-only 测试在 Windows CI 运行）。
+- Rust：**54 测试**（Windows CI，含 Windows-only 测试）。
 - 浏览器 Mock 原有测试全部保留。
 
 覆盖：

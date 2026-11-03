@@ -28,6 +28,36 @@ Windows 实机：
 - WMIC 唯一路径；
 - 无 PID 归属校验的直接凭据使用。
 
+## 参考项目与当前实现差异
+
+| 维度          | 参考项目 `aram-helper`                 | 当前 ARAM: Mayhem                                     | 是否可能导致失败                                          |
+| ------------- | -------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------- |
+| 参数发现顺序  | WMIC → PowerShell CIM → lockfile       | `sysinfo` 进程命令行 → lockfile                       | **可能**：若 `sysinfo` 取不到 cmd，当前没有 WMIC/CIM 回退 |
+| 进程选择      | 只找 `LeagueClientUx.exe`              | Ux 优先，LeagueClient 次选                            | 当前覆盖更宽；多实例会报错而非随机选                      |
+| 凭据归属      | 未校验 PID                             | 同一 PID 的 port+token；lockfile PID 校验             | 当前更严格，不是失败原因                                  |
+| 参数格式      | 整段命令行字符串查找                   | argv 逐项解析，支持 `=`/空格                          | 等价；token 内 `=` 已覆盖                                 |
+| lockfile 读取 | 普通 `read_to_string`                  | Windows 共享读 + 重试；空内容不算成功                 | 当前更适合用户遇到的 `0x80070020`/空文件                  |
+| 连接探测      | 创建 client，后续查 `current-summoner` | `/riotclient/region-locale` + 兜底 `current-summoner` | **可能**：旧实现只查 region-locale，若该端点 404 会误判   |
+| TLS           | 关闭证书校验                           | 专用 loopback client 关闭校验                         | 不是失败原因                                              |
+| 错误处理/缓存 | 宽泛错误、凭证缓存                     | 稳定错误码、无凭证缓存                                | 不是失败原因                                              |
+| 状态机        | 无本项目状态机                         | 保留 monitor/reconnect/event                          | 已保留                                                    |
+
+### 参考项目成功路径确认状态
+
+**未确认。** 当前环境没有运行参考项目的 Windows 日志，无法证明它实际走的是 WMIC、PowerShell CIM 还是 lockfile。用户已确认参考项目可连接，但这不等于已观测到具体发现分支。
+
+**未复制的部分：** WMIC/PowerShell 源码、TLS 关闭代码、宽泛错误处理、凭据缓存。
+
+### 本轮针对性修复
+
+1. `sysinfo` 使用 `ProcessRefreshKind::everything()` 显式刷新，确保后启动客户端的 cmd 被填充。
+2. probe 从单一 `region-locale` 扩展为：
+   - `/riotclient/region-locale`（无用户信息）
+   - `/lol-summoner/v1/current-summoner`（登录阶段兜底）
+   - 401/403 立即认证失败；404/5xx 尝试下一个；成功仍需 JSON/2xx。
+3. 仍保留 PID/name 归属校验和共享 lockfile 回退。
+4. 未加入 WMIC/PowerShell 回退；如果实机确认 `sysinfo` cmd 为空，应基于脱敏日志再增加 PID-scoped CIM 回退，避免盲目复制和轮询开销。
+
 ## 实现差异
 
 ### 1. 纯解析器
@@ -97,9 +127,9 @@ Windows-only 测试：
 
 结果：
 
-- macOS：Rust **50 passed**（Windows-only 测试不运行）。
+- Windows CI：Rust **54 passed**（含 Windows-only 共享锁测试）。
 - 前端：**102 passed**。
-- Windows CI：待运行；Windows-only 测试预计在其中执行。
+- macOS 本地：Rust **53 passed**；Windows CI 的 Windows-only 测试额外 1 个。
 
 ## 需要 Windows 实机确认
 
@@ -114,3 +144,30 @@ Windows-only 测试：
 如果只有 `source=lockfile result=discovery_failed` 且没有 `source=args`，说明 `sysinfo` 未取得参数或参数不完整；此时不要猜改 lockfile 格式，先提供脱敏日志。
 
 最终必须通过真实 Windows 上的只读 HTTPS GET 才能确认连接成功；CI 测试/编译不能替代。
+
+## Windows CI 与 Artifact
+
+- Commit SHA：`648009c0bc1bdb0834b9a858f73175b824a848c0`
+- Validation：https://github.com/UoMiss/aram-mayhem/actions/runs/41585949958
+  - 3m51；前端 102、Rust 54、audit；通过
+- Release：https://github.com/UoMiss/aram-mayhem/actions/runs/41586391688
+  - 5m27；Rust cache full match；NSIS 通过
+- Artifact：`aram-mayhem-windows-x64`（id `13208610941`）
+- 安装包：`aram-mayhem-windows-x64-setup.exe`
+- 大小：**4,321,331 bytes**
+- SHA-256：
+
+```text
+7668e7e71c594363d162043a00b161be65ca9f5625e57801ed822d73f1140a3e
+```
+
+- 下载页：https://github.com/UoMiss/aram-mayhem/actions/runs/41586391688/artifacts/13208610941
+- 未签名、未创建 GitHub Release。
+- **CI 只证明编译/测试/NSIS，不证明真实 Windows LCU 已连接。**
+
+## 当前验收状态
+
+- 代码、自动化测试、Windows NSIS 构建：通过。
+- 参考项目具体成功发现路径：**未确认**。
+- Windows 真实 LOL 客户端：**未执行本轮实机测试**。
+- 因此不能宣称“ARAM: Mayhem 已能在同一 Windows 客户端成功连接”，阶段 10.1 不能正式通过。

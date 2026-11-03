@@ -116,5 +116,6 @@
 - args-first：同一进程内 `--app-port` + `--remoting-auth-token`；PID/name 归属校验。
 - lockfile 回退：Windows 共享读取、3 次重试、空内容/占用不算连接、PID 校验。
 - 无 WMIC、无凭据缓存、无日志 token。
-- macOS Rust 50 通过；Windows-only 共享锁测试待 CI；前端 102 通过。
-- Windows 真实启动参数与 HTTPS probe 尚未确认。
+- Windows CI Rust 54 通过（含共享锁测试）；前端 102 通过。
+- 最新 Release：`41586391688`；Artifact `13208610941`；SHA-256 `7668e7e71c594363d162043a00b161be65ca9f5625e57801ed822d73f1140a3e`。
+- Windows 真实启动参数与 HTTPS probe 尚未确认；阶段 10.1 不能正式通过。

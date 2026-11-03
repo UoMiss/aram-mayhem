@@ -244,4 +244,5 @@ Windows CI 已拆分为 Validation 和手动 Release；热缓存 Release 4m19（
 - 进程启动参数优先（同一 PID 的 `--app-port` + `--remoting-auth-token`），lockfile 共享读取回退。
 - 不使用 WMIC；不复制参考项目的 TLS 关闭/凭据缓存；不输出 token。
 - 详情：[LCU_CREDENTIAL_DISCOVERY_FIX.md](docs/LCU_CREDENTIAL_DISCOVERY_FIX.md)。
+- 最新 Artifact：id `13208610941`，安装包 4,321,331 bytes，SHA-256 `7668e7e71c594363d162043a00b161be65ca9f5625e57801ed822d73f1140a3e`。
 - Windows 实机参数/HTTPS 探测仍待验证，不能仅凭 CI 判定真实连接通过。
