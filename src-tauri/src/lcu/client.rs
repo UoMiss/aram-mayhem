@@ -39,6 +39,7 @@ impl LcuHttpClient {
     pub fn new() -> Result<Self, LcuError> {
         let client = Client::builder()
             .https_only(true)
+            .no_proxy()
             .danger_accept_invalid_certs(true)
             .connect_timeout(LCU_TIMEOUT)
             .timeout(LCU_TIMEOUT)

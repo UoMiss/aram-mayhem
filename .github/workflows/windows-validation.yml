@@ -1,6 +1,8 @@
 name: Windows x64 Validation
 
 on:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
   push:
     branches: [main]
@@ -55,7 +57,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Frontend, TypeScript, ESLint, Prettier and 102 tests
+      - name: Frontend quality gates and tests
         run: pnpm check
 
       - name: Dependency audit

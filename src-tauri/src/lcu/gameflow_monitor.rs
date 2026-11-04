@@ -248,6 +248,8 @@ async fn run_gameflow_monitor<S: GameflowSource>(
     let mut websocket: Option<JoinHandle<()>> = None;
     let mut websocket_fingerprint: Option<String> = None;
     let mut session_generation: u64 = 0;
+    let mut websocket_retry = config.retry_initial;
+    let mut websocket_retry_at = tokio::time::Instant::now();
     let mut retry = config.retry_initial;
     let is_current = || generation_ref.load(Ordering::SeqCst) == generation;
 
@@ -261,6 +263,10 @@ async fn run_gameflow_monitor<S: GameflowSource>(
             result = source.discover() => result,
         };
 
+        if *cancel.borrow() || !is_current() {
+            break;
+        }
+
         match discovery {
             Ok(Some(client)) => {
                 let fingerprint = client.fingerprint();
@@ -270,6 +276,18 @@ async fn run_gameflow_monitor<S: GameflowSource>(
                     }
                     websocket_fingerprint = Some(fingerprint.clone());
                     session_generation = session_generation.saturating_add(1);
+                    websocket_retry = config.retry_initial;
+                    websocket_retry_at = tokio::time::Instant::now();
+                }
+                if websocket
+                    .as_ref()
+                    .is_some_and(|handle| handle.is_finished())
+                {
+                    websocket.take();
+                    websocket_retry_at = tokio::time::Instant::now() + websocket_retry;
+                    websocket_retry = (websocket_retry * 2).min(config.retry_max);
+                }
+                if websocket.is_none() && tokio::time::Instant::now() >= websocket_retry_at {
                     let source_for_ws = Arc::clone(&source);
                     let client_for_ws = client.clone();
                     let wake_for_ws = wake_tx.clone();
@@ -285,16 +303,14 @@ async fn run_gameflow_monitor<S: GameflowSource>(
                     _ = cancel.changed() => break,
                     result = source.read(&client) => result,
                 };
+                if *cancel.borrow() || !is_current() {
+                    break;
+                }
                 match reading {
                     Ok(reading) => {
                         let ws_active = websocket
                             .as_ref()
                             .is_some_and(|handle| !handle.is_finished());
-                        if !ws_active {
-                            if let Some(handle) = websocket.take() {
-                                handle.abort();
-                            }
-                        }
                         let transport = if ws_active {
                             GameflowTransport::Websocket
                         } else {
@@ -504,7 +520,6 @@ mod tests {
     struct FakeGameflowSource {
         discoveries: Mutex<VecDeque<Result<Option<LcuClient>, LcuError>>>,
         readings: Mutex<VecDeque<Result<GameflowReading, LcuError>>>,
-        default_client: Mutex<Option<LcuClient>>,
     }
 
     impl FakeGameflowSource {
@@ -515,7 +530,6 @@ mod tests {
             Self {
                 discoveries: Mutex::new(discoveries.into()),
                 readings: Mutex::new(readings.into()),
-                default_client: Mutex::new(None),
             }
         }
     }
@@ -691,5 +705,63 @@ mod tests {
         let snapshot = manager.start_monitoring(callback(tx));
         assert!(!snapshot.connected);
         assert_eq!(snapshot.source, LcuSourceKind::Unavailable);
+    }
+
+    struct ReconnectingSource {
+        attempts: std::sync::atomic::AtomicUsize,
+    }
+
+    #[async_trait]
+    impl GameflowSource for ReconnectingSource {
+        async fn discover(&self) -> Result<Option<LcuClient>, LcuError> {
+            Ok(Some(client(51003)))
+        }
+
+        async fn read(&self, _client: &LcuClient) -> Result<GameflowReading, LcuError> {
+            Ok(reading(GameflowPhase::InProgress, "InProgress"))
+        }
+
+        async fn listen(
+            &self,
+            _client: &LcuClient,
+            _wake: mpsc::Sender<()>,
+            mut cancel: watch::Receiver<bool>,
+        ) -> Result<(), LcuError> {
+            if self.attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(LcuError::internal("temporary socket failure"));
+            }
+            let _ = cancel.changed().await;
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn websocket_recovers_for_same_client_without_replacing_session() {
+        let source = Arc::new(ReconnectingSource {
+            attempts: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let manager = GameflowManager::new(Arc::clone(&source), LcuSourceKind::Real, config());
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        manager.start_monitoring(callback(tx));
+        let first = next_updated(&mut rx).await;
+        let first_key = first.session.unwrap().session_key;
+        let mut saw_polling = first.transport == GameflowTransport::Polling;
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let snapshot = next_updated(&mut rx).await;
+                assert_eq!(snapshot.session.unwrap().session_key, first_key);
+                saw_polling |= snapshot.transport == GameflowTransport::Polling;
+                if source.attempts.load(Ordering::SeqCst) >= 2
+                    && snapshot.transport == GameflowTransport::Websocket
+                {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("socket did not recover");
+        assert!(saw_polling);
+        manager.stop_monitoring().await;
+        assert!(!manager.snapshot().connected);
     }
 }

@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { useAppStore } from '@/stores/app'
+import { useFeedbackStore } from '@/stores/feedback'
 
-const app = useAppStore()
+const feedback = useFeedbackStore()
 </script>
 
 <template>
   <div
     class="app-toast"
-    :class="{ show: app.toastVisible, 'app-toast-error': app.toastTone === 'error' }"
+    :class="{ show: feedback.toastVisible, 'app-toast-error': feedback.toastTone === 'error' }"
     role="status"
     aria-live="polite"
   >
-    {{ app.toastMessage }}
+    {{ feedback.toastMessage }}
   </div>
 </template>

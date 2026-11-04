@@ -14,14 +14,14 @@ const { t } = useI18n({ useScope: 'global' })
 const teamTone = computed(() =>
   props.side === 'blue'
     ? {
-        border: 'border-l-cyan-500',
-        header: 'bg-cyan-500/10',
-        title: 'text-cyan-400',
+        border: 'border-l-info-bright',
+        header: 'bg-info-bright/10',
+        title: 'text-info',
       }
     : {
-        border: 'border-l-rose-500',
-        header: 'bg-rose-500/10',
-        title: 'text-rose-400',
+        border: 'border-l-danger-bright',
+        header: 'bg-danger-bright/10',
+        title: 'text-danger',
       },
 )
 
@@ -41,15 +41,15 @@ const totalKda = computed(() => {
 <template>
   <div
     :data-team-section="side"
-    class="overflow-hidden rounded-xl border border-white/5 border-l-4"
+    class="overflow-hidden rounded-xl border border-on-solid/5 border-l-4"
     :class="[teamTone.border, side === 'blue' ? 'mt-3' : '']"
   >
     <div
-      class="flex items-center justify-between border-b border-white/5 px-4 py-2"
+      class="flex items-center justify-between border-b border-on-solid/5 px-4 py-2"
       :class="teamTone.header"
     >
       <span class="text-xs font-bold" :class="teamTone.title">{{ t(TEAM_TITLE_KEYS[side]) }}</span>
-      <span class="text-xs font-bold tracking-wider text-slate-400">{{ totalKda }}</span>
+      <span class="text-xs font-bold tracking-wider text-text-muted">{{ totalKda }}</span>
     </div>
 
     <SettlementPlayerRow

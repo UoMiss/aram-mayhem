@@ -169,3 +169,52 @@ describe('tauri gameflow adapter', () => {
     expect(unlisten).toHaveBeenCalledTimes(4)
   })
 })
+
+describe('IPC trust boundaries and subscription cleanup', () => {
+  beforeEach(() => {
+    invokeMock.mockReset()
+    listenMock.mockReset()
+  })
+
+  it('preserves a known business code without exposing the native message', async () => {
+    invokeMock.mockRejectedValue({ code: 'authentication_failed', message: 'token=secret; stack' })
+    await expect(tauriLcuAdapter.startMonitoring()).rejects.toMatchObject({
+      code: 'lcu.authentication_failed',
+      message: '客户端认证失败，请重新连接',
+    })
+  })
+
+  it('rejects malformed command results before they enter application state', async () => {
+    invokeMock.mockResolvedValue({ ...lcuStatus, revision: '4' })
+    await expect(tauriLcuAdapter.getConnectionStatus()).rejects.toMatchObject({
+      code: 'lcu.invalid_response',
+    })
+    invokeMock.mockResolvedValue({ ...gameflowSnapshot, session: { sessionKey: 'incomplete' } })
+    await expect(tauriGameflowAdapter.getSnapshot()).rejects.toMatchObject({
+      code: 'lcu.invalid_response',
+    })
+  })
+
+  it('drops malformed events and reports a sanitized error', async () => {
+    listenMock.mockResolvedValue(vi.fn())
+    const listener = vi.fn()
+    const onError = vi.fn()
+    const stop = await tauriLcuAdapter.subscribe(listener, onError)
+    const handler = listenMock.mock.calls[0]?.[1] as (event: { payload: unknown }) => void
+    handler({ payload: { ...lcuStatus, status: 'invented' } })
+    expect(listener).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'lcu.invalid_response' }))
+    handler({ payload: lcuStatus })
+    expect(listener).toHaveBeenCalledWith(lcuStatus)
+    stop()
+  })
+
+  it('releases earlier subscriptions when a later subscription fails', async () => {
+    const stop = vi.fn()
+    listenMock.mockResolvedValueOnce(stop).mockRejectedValueOnce(new Error('raw host details'))
+    await expect(tauriGameflowAdapter.subscribe(vi.fn())).rejects.toMatchObject({
+      code: 'lcu.ipc_failed',
+    })
+    expect(stop).toHaveBeenCalledOnce()
+  })
+})

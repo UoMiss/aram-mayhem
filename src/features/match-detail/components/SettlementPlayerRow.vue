@@ -12,23 +12,23 @@ const props = defineProps<{
 }>()
 
 const toneClasses: Record<StatTone, { bar: string }> = {
-  rose: { bar: 'bg-rose-500' },
-  amber: { bar: 'bg-amber-500' },
-  emerald: { bar: 'bg-emerald-500' },
+  rose: { bar: 'bg-danger-bright' },
+  amber: { bar: 'bg-warning-bright' },
+  emerald: { bar: 'bg-success-bright' },
 }
 
 const teamTone = computed(() =>
   props.player.team === 'blue'
     ? {
-        border: 'border-l-cyan-500',
-        tint: 'bg-cyan-500/[0.02] hover:bg-cyan-500/[0.05]',
-        score: 'text-cyan-400',
+        border: 'border-l-info-bright',
+        tint: 'bg-info-bright/[0.02] hover:bg-info-bright/[0.05]',
+        score: 'text-info',
         badge: 'badge-blue',
       }
     : {
-        border: 'border-l-rose-500',
-        tint: 'bg-rose-500/[0.02] hover:bg-rose-500/[0.05]',
-        score: 'text-rose-500',
+        border: 'border-l-danger-bright',
+        tint: 'bg-danger-bright/[0.02] hover:bg-danger-bright/[0.05]',
+        score: 'text-danger-bright',
         badge: 'badge-red',
       },
 )
@@ -40,7 +40,9 @@ const kdaLabel = computed(
 const relationTag = computed(() => ({
   label: t(PLAYER_RELATION_KEYS[props.player.relation]),
   className:
-    props.player.relation === 'self' ? 'bg-amber-600/80 text-white' : 'bg-slate-700 text-slate-300',
+    props.player.relation === 'self'
+      ? 'bg-warning-strong/80 text-on-solid'
+      : 'bg-border-strong text-text-secondary',
 }))
 </script>
 
@@ -48,7 +50,7 @@ const relationTag = computed(() => ({
   <div
     :data-player-id="player.id"
     :data-layout="layout"
-    class="flex items-center border-b border-white/5 px-4 py-3"
+    class="flex items-center border-b border-on-solid/5 px-4 py-3"
     :class="
       layout === 'group'
         ? 'last:border-0'
@@ -60,10 +62,10 @@ const relationTag = computed(() => ({
         <img
           :src="player.championImage"
           :alt="player.champion"
-          class="h-full w-full rounded-full border-2 border-slate-700 object-cover"
+          class="h-full w-full rounded-full border-2 border-border-strong object-cover"
         />
         <div
-          class="absolute -right-1 -bottom-1 rounded-full border border-slate-600 bg-slate-900 px-1.5 text-[9px] text-white"
+          class="absolute -right-1 -bottom-1 rounded-full border border-text-faint bg-surface-sunken px-1.5 text-[9px] text-on-solid"
         >
           {{ player.level }}
         </div>
@@ -73,7 +75,7 @@ const relationTag = computed(() => ({
 
     <div class="flex-1 overflow-hidden pr-2">
       <div class="mb-1 flex items-center gap-2">
-        <span class="truncate text-sm font-medium text-slate-200">{{ player.nickname }}</span>
+        <span class="truncate text-sm font-medium text-text-soft">{{ player.nickname }}</span>
 
         <span
           v-if="layout === 'group'"
@@ -87,11 +89,11 @@ const relationTag = computed(() => ({
         </span>
       </div>
 
-      <div class="mb-1.5 text-sm font-bold text-white">{{ kdaLabel }}</div>
+      <div class="mb-1.5 text-sm font-bold text-on-solid">{{ kdaLabel }}</div>
 
       <div class="grid grid-cols-3 gap-2">
         <div v-for="stat in player.stats" :key="stat.key" class="w-full">
-          <div class="flex justify-between text-[10px] text-slate-400">
+          <div class="flex justify-between text-[10px] text-text-muted">
             <span>{{ t(STAT_LABEL_KEYS[stat.key]) }}</span>
             <span>{{ stat.value }}</span>
           </div>
@@ -106,7 +108,7 @@ const relationTag = computed(() => ({
       </div>
     </div>
 
-    <div class="w-[45px] shrink-0 text-right font-mono text-xl font-black" :class="teamTone.score">
+    <div class="w-[45px] shrink-0 text-right font-mono text-xl font-ink" :class="teamTone.score">
       {{ player.score.toFixed(1) }}
     </div>
   </div>

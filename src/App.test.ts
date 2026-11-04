@@ -44,7 +44,7 @@ describe('App shell rendering', () => {
     expect(html).toContain('重新连接')
     expect(html).toContain('连接详情 · 每')
     expect(html).not.toContain('lcu-connector.sh')
-    expect(html).not.toContain('Mayhem Assistant v2.4')
+    expect(html).not.toContain('Mayhem Assistant v0.1.0')
   })
 
   it('expands the connection details panel through reactive state', async () => {
@@ -65,7 +65,7 @@ describe('App shell rendering', () => {
     })
 
     expect(html).not.toContain('等待连接英雄联盟')
-    expect(html).toContain('Mayhem Assistant v2.4')
+    expect(html).toContain('Mayhem Assistant v0.1.0')
     expect(html).toContain('id="page-home"')
     expect(html).toContain('峡谷小米')
     expect(html).toContain('房间中')
@@ -220,10 +220,11 @@ describe('App shell rendering', () => {
     expect(html).toContain('提示音效')
     expect(html).toContain('关于助手')
     expect(html).toContain('当前版本')
-    expect(html).toContain('v2.4.0-release')
+    expect(html).toContain('v0.1.0')
     expect(html).toContain('检查更新')
-    expect(html.match(/role="switch"/g)).toHaveLength(3)
-    expect(html.match(/aria-checked="true"/g)).toHaveLength(3)
+    const settingsHtml = html.slice(html.indexOf('id="page-settings"')).split('</section>')[0]!
+    expect(settingsHtml.match(/role="switch"/g)).toHaveLength(3)
+    expect(settingsHtml.match(/aria-checked="true"/g)).toHaveLength(3)
     expect(html).not.toContain('重置设置')
   })
 })

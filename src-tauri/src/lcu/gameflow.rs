@@ -347,7 +347,9 @@ impl GameSessionTracker {
         if current.connection_generation != generation {
             return true;
         }
-        if current.phase.is_terminal() {
+        // Polling the same terminal phase is still the same game. Only a move
+        // out of the terminal state starts another session.
+        if current.phase.is_terminal() && !phase.is_terminal() {
             return true;
         }
         if matches!(phase, GameflowPhase::Lobby) && !matches!(current.phase, GameflowPhase::Lobby) {
@@ -636,5 +638,23 @@ mod tests {
         let first = tracker.observe(1, &GameflowPhase::Lobby, &Some(lobby.clone()), &None, &None);
         let second = tracker.observe(1, &GameflowPhase::Lobby, &Some(lobby), &None, &None);
         assert_eq!(first.context, second.context);
+    }
+
+    #[test]
+    fn repeated_terminal_phase_preserves_session_and_revision() {
+        for phase in [GameflowPhase::EndOfGame, GameflowPhase::TerminatedInError] {
+            let mut machine = GameflowMachine::new(LcuSourceKind::Real, false);
+            let reading = GameflowReading {
+                raw_phase: phase.as_raw().to_string(),
+                phase,
+                lobby: None,
+                champion_select: None,
+                game_id: Some("42".to_string()),
+            };
+            let first = machine.observe(1, reading.clone(), GameflowTransport::Polling);
+            let repeated = machine.observe(1, reading, GameflowTransport::Polling);
+            assert_eq!(first.current, repeated.current);
+            assert!(repeated.session_ended.is_none());
+        }
     }
 }

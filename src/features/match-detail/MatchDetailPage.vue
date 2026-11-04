@@ -6,10 +6,12 @@ import SettlementRanking from '@/features/match-detail/components/SettlementRank
 import SettlementTeamSection from '@/features/match-detail/components/SettlementTeamSection.vue'
 import { MATCH_DETAIL_FIXTURE } from '@/mocks/match-detail'
 import { captureAndDeliverScreenshot } from '@/services/image.service'
-import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
+import { useFeedbackStore } from '@/stores/feedback'
 import type { SettlementLayout } from '@/types/match-detail'
 
-const app = useAppStore()
+const ui = useUiStore()
+const feedback = useFeedbackStore()
 const { t } = useI18n({ useScope: 'global' })
 const fixture = MATCH_DETAIL_FIXTURE
 
@@ -28,8 +30,8 @@ const globalPlayers = computed(() =>
 function layoutButtonClass(target: SettlementLayout): string {
   const base = 'flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer'
   return layout.value === target
-    ? `${base} bg-purple-600 text-white shadow-md shadow-purple-600/30`
-    : `${base} text-slate-400 hover:text-white`
+    ? `${base} bg-brand-strong text-on-solid shadow-md shadow-brand-strong/30`
+    : `${base} text-text-muted hover:text-on-solid`
 }
 
 async function copyScreenshot() {
@@ -37,7 +39,7 @@ async function copyScreenshot() {
 
   const target = screenshotRef.value
   if (!target) {
-    app.notify(t('toast.screenshotMissing'), 'error')
+    feedback.notify(t('toast.screenshotMissing'), 'error')
     return
   }
 
@@ -46,12 +48,12 @@ async function copyScreenshot() {
     const result = await captureAndDeliverScreenshot(target, {
       fileNamePrefix: t('matchDetail.fileNamePrefix'),
     })
-    app.notify(
+    feedback.notify(
       result.status === 'copied' ? t('toast.screenshotCopied') : t('toast.screenshotDownloaded'),
       'success',
     )
   } catch {
-    app.notify(t('toast.screenshotFailed'), 'error')
+    feedback.notify(t('toast.screenshotFailed'), 'error')
   } finally {
     isCopying.value = false
   }
@@ -64,18 +66,18 @@ async function copyScreenshot() {
       <button
         type="button"
         :aria-label="t('common.backHome')"
-        class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-white/5 bg-slate-800/80 text-slate-300 transition-all hover:bg-purple-600/30 active:scale-90"
-        @click="app.setActiveTab('home')"
+        class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-on-solid/5 bg-surface-raised/80 text-text-secondary transition-all hover:bg-brand-strong/30 active:scale-90"
+        @click="ui.setActiveTab('home')"
       >
         <i class="fa-solid fa-chevron-left text-sm"></i>
       </button>
-      <h2 class="text-base font-bold text-white">{{ t('matchDetail.title') }}</h2>
-      <div class="ml-auto flex items-center gap-1.5 text-[10px] text-slate-400">
-        <span class="rounded-md border border-white/5 bg-slate-800/60 px-2 py-1">
+      <h2 class="text-base font-bold text-on-solid">{{ t('matchDetail.title') }}</h2>
+      <div class="ml-auto flex items-center gap-1.5 text-[10px] text-text-muted">
+        <span class="rounded-md border border-on-solid/5 bg-surface-raised/60 px-2 py-1">
           {{ fixture.queueLabel }}
         </span>
         <span
-          class="flex items-center gap-1 rounded-md border border-white/5 bg-slate-800/60 px-2 py-1"
+          class="flex items-center gap-1 rounded-md border border-on-solid/5 bg-surface-raised/60 px-2 py-1"
         >
           <i class="fa-regular fa-clock text-[9px]"></i>
           {{ fixture.duration }}
@@ -87,13 +89,13 @@ async function copyScreenshot() {
       id="screenshot-area"
       ref="screenshotRef"
       data-screenshot-root
-      class="space-y-3 rounded-xl border border-white/5 bg-[#0c0b14] p-3"
+      class="space-y-3 rounded-xl border border-on-solid/5 bg-shell p-3"
     >
       <RedPacketNotice :entries="fixture.redPacket.entries" />
 
-      <div class="glass-card overflow-hidden rounded-2xl border border-white/5 screenshot-mode">
-        <div class="border-b border-white/5 bg-slate-900/50 p-2">
-          <div class="flex rounded-xl border border-white/5 bg-slate-950/50 p-1">
+      <div class="glass-card overflow-hidden rounded-2xl border border-on-solid/5 screenshot-mode">
+        <div class="border-b border-on-solid/5 bg-surface-sunken/50 p-2">
+          <div class="flex rounded-xl border border-on-solid/5 bg-surface-base/50 p-1">
             <button
               id="btn-layout-group"
               type="button"
@@ -134,7 +136,7 @@ async function copyScreenshot() {
         type="button"
         :disabled="isCopying"
         :aria-busy="isCopying"
-        class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-purple-500/30 bg-[#1a1625] px-6 py-2.5 text-sm font-bold tracking-wide text-purple-100 shadow-[0_0_20px_rgba(168,85,247,0.15)] transition-all hover:border-purple-400/50 hover:bg-[#252035] hover:shadow-[0_0_25px_rgba(168,85,247,0.25)] active:scale-[0.98]"
+        class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-brand-bright/30 bg-settlement px-6 py-2.5 text-sm font-bold tracking-wide text-brand-soft shadow-settlement transition-all hover:border-brand/50 hover:bg-settlement-raised hover:shadow-settlement-hover active:scale-[0.98]"
         :class="{ 'cursor-not-allowed opacity-70': isCopying }"
         @click="copyScreenshot"
       >
@@ -142,7 +144,7 @@ async function copyScreenshot() {
           :class="
             isCopying
               ? 'fa-solid fa-spinner fa-spin text-base'
-              : 'fa-regular fa-copy text-base text-purple-400'
+              : 'fa-regular fa-copy text-base text-brand'
           "
         ></i>
         <span>{{ isCopying ? t('common.generating') : t('matchDetail.copyScreenshot') }}</span>

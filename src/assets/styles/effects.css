@@ -175,16 +175,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-glow,
-  .dot1,
-  .dot2,
-  .dot3,
-  .terminal-cursor,
-  .pop-in {
-    animation: none;
-  }
-  .drawer-overlay,
-  .drawer-content {
-    transition: none;
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
 }

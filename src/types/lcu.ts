@@ -23,13 +23,14 @@ export interface LcuStatusDto {
 }
 
 export type LcuStatusListener = (status: LcuStatusDto) => void
+export type LcuErrorListener = (error: { code: string; message: string }) => void
 export type LcuUnlisten = () => void
 
 export interface LcuAdapter {
   getConnectionStatus(): Promise<LcuStatusDto>
   startMonitoring(): Promise<LcuStatusDto>
   stopMonitoring(): Promise<LcuStatusDto>
-  subscribe(listener: LcuStatusListener): Promise<LcuUnlisten>
+  subscribe(listener: LcuStatusListener, onError?: LcuErrorListener): Promise<LcuUnlisten>
 }
 
 export const LCU_STATUS_EVENT = 'lcu://connection-status'
@@ -115,7 +116,7 @@ export interface GameflowAdapter {
   getSnapshot(): Promise<GameflowSnapshot>
   startMonitoring(): Promise<GameflowSnapshot>
   stopMonitoring(): Promise<GameflowSnapshot>
-  subscribe(listener: GameflowEventListener): Promise<LcuUnlisten>
+  subscribe(listener: GameflowEventListener, onError?: LcuErrorListener): Promise<LcuUnlisten>
 }
 
 export const GAMEFLOW_UPDATED_EVENT = 'lcu://gameflow-updated'

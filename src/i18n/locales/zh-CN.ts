@@ -128,6 +128,7 @@ const zhCN = {
     version: '当前版本',
     checkUpdate: '检查更新',
     updateLatest: '已是最新版本！',
+    updateUnavailable: '当前版本暂不支持自动检查更新',
   },
   gameflow: {
     phases: {

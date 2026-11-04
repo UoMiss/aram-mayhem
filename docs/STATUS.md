@@ -119,3 +119,7 @@
 - Windows CI Rust 54 通过（含共享锁测试）；前端 102 通过。
 - 最新 Release：`41586391688`；Artifact `13208610941`；SHA-256 `7668e7e71c594363d162043a00b161be65ca9f5625e57801ed822d73f1140a3e`。
 - Windows 真实启动参数与 HTTPS probe 尚未确认；阶段 10.1 不能正式通过。
+
+## 2026-11-05 开发标准修复
+
+本轮已修复 LCU 终态会话重复、WebSocket 恢复、本地代理、领域 Store、IPC 运行时校验、订阅生命周期、语义主题、抽屉无障碍、统一版本及 CI 门禁。详见 [修复与验证记录](FRONTEND_REMEDIATION.md)。真实 Windows LCU 和真实战绩/算分/结算闭环仍未完成验收。

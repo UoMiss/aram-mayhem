@@ -4,21 +4,21 @@ import { useI18n } from 'vue-i18n'
 import MatchHistoryCard from '@/features/history/components/MatchHistoryCard.vue'
 import { HISTORY_FILTER_KEYS } from '@/i18n/labels'
 import { HISTORY_FILTERS } from '@/mocks/history'
-import { useAppStore } from '@/stores/app'
+import { useHistoryStore } from '@/stores/history'
 import type { HistoryFilter } from '@/types/history'
 
 const REFRESH_ANIMATION_MS = 800
 const RECENT_MATCH_LIMIT = 20
 
-const app = useAppStore()
+const history = useHistoryStore()
 const { t } = useI18n({ useScope: 'global' })
 const isRefreshing = ref(false)
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
 /** 筛选只改变展示集合，保持 MATCH_HISTORY 原始顺序。 */
 const filteredMatches = computed(() => {
-  if (app.historyFilter === 'all') return app.matchHistory
-  return app.matchHistory.filter((match) => match.mode === app.historyFilter)
+  if (history.historyFilter === 'all') return history.matchHistory
+  return history.matchHistory.filter((match) => match.mode === history.historyFilter)
 })
 
 function filterLabel(filter: HistoryFilter): string {
@@ -28,9 +28,9 @@ function filterLabel(filter: HistoryFilter): string {
 function filterButtonClasses(filter: HistoryFilter): string {
   const base =
     'filter-btn px-4 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap cursor-pointer'
-  return app.historyFilter === filter
-    ? `${base} bg-purple-600 text-white shadow-md shadow-purple-600/30`
-    : `${base} border border-white/5 bg-slate-800/80 text-slate-400 hover:text-white`
+  return history.historyFilter === filter
+    ? `${base} bg-brand-strong text-on-solid shadow-md shadow-brand-strong/30`
+    : `${base} border border-on-solid/5 bg-surface-raised/80 text-text-muted hover:text-on-solid`
 }
 
 /** 原版 800ms 旋转动画；重复点击被忽略，不修改 Mock 数据。 */
@@ -65,9 +65,9 @@ onUnmounted(() => {
           :key="filter"
           type="button"
           :data-filter="filter"
-          :aria-pressed="app.historyFilter === filter"
+          :aria-pressed="history.historyFilter === filter"
           :class="filterButtonClasses(filter)"
-          @click="app.setHistoryFilter(filter)"
+          @click="history.setHistoryFilter(filter)"
         >
           {{ filterLabel(filter) }}
         </button>
@@ -76,7 +76,7 @@ onUnmounted(() => {
       <button
         type="button"
         :title="t('a11y.refreshHistory')"
-        class="flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-white/5 bg-slate-800/80 p-2 text-slate-300 transition-all hover:bg-purple-600/30 hover:text-white active:scale-90"
+        class="flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-on-solid/5 bg-surface-raised/80 p-2 text-text-secondary transition-all hover:bg-brand-strong/30 hover:text-on-solid active:scale-90"
         :aria-busy="isRefreshing"
         @click="refreshHistory"
       >
@@ -85,9 +85,9 @@ onUnmounted(() => {
     </div>
 
     <div
-      class="flex items-center gap-1.5 rounded-xl border border-white/5 bg-slate-900/50 px-3 py-1.5 text-[11px] text-slate-400"
+      class="flex items-center gap-1.5 rounded-xl border border-on-solid/5 bg-surface-sunken/50 px-3 py-1.5 text-[11px] text-text-muted"
     >
-      <i class="fa-solid fa-circle-info text-xs text-purple-400"></i>
+      <i class="fa-solid fa-circle-info text-xs text-brand"></i>
       <span>{{ t('history.recentHint', { count: RECENT_MATCH_LIMIT }) }}</span>
     </div>
 
@@ -96,7 +96,7 @@ onUnmounted(() => {
         v-for="match in filteredMatches"
         :key="match.id"
         :match="match"
-        @select="app.openMatchDetail"
+        @select="history.openMatchDetail"
       />
     </div>
   </section>

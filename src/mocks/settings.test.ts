@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultSettings, SETTINGS_OPTIONS, SETTINGS_VERSION } from './settings'
+import { createDefaultSettings, SETTINGS_OPTIONS } from './settings'
 
 describe('settings mock', () => {
   it('defaults all three settings to true', () => {
@@ -18,8 +18,7 @@ describe('settings mock', () => {
     expect(second.autoStart).toBe(true)
   })
 
-  it('keeps the original setting keys and demo version', () => {
+  it('keeps the original setting keys', () => {
     expect(SETTINGS_OPTIONS).toEqual(['autoStart', 'autoRetry', 'soundEffects'])
-    expect(SETTINGS_VERSION).toBe('v2.4.0-release')
   })
 })

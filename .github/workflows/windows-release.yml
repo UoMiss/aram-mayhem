@@ -55,6 +55,9 @@ jobs:
       - name: Baseline check
         run: pnpm check:baseline
 
+      - name: Prettier
+        run: pnpm format:check
+
       - name: TypeScript and ESLint
         run: |
           pnpm typecheck

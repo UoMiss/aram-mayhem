@@ -199,3 +199,96 @@
     border-radius: 2px;
   }
 }
+
+/* Semantic aliases preserve the approved ARAM palette. */
+@theme inline {
+  --color-brand-soft: var(--color-purple-100);
+  --color-danger-soft: var(--color-rose-100);
+  --color-brand-contrast: var(--color-purple-50);
+  --color-brand-pale: var(--color-purple-200);
+  --color-brand-light: var(--color-purple-300);
+  --color-brand: var(--color-purple-400);
+  --color-brand-bright: var(--color-purple-500);
+  --color-brand-strong: var(--color-purple-600);
+  --color-brand-dark: var(--color-purple-700);
+  --color-brand-deep: var(--color-purple-800);
+  --color-brand-surface: var(--color-purple-900);
+  --color-brand-base: var(--color-purple-950);
+  --color-text-bright: var(--color-slate-50);
+  --color-text-main: var(--color-slate-100);
+  --color-text-soft: var(--color-slate-200);
+  --color-text-secondary: var(--color-slate-300);
+  --color-text-muted: var(--color-slate-400);
+  --color-text-subtle: var(--color-slate-500);
+  --color-text-faint: var(--color-slate-600);
+  --color-border-strong: var(--color-slate-700);
+  --color-surface-raised: var(--color-slate-800);
+  --color-surface-sunken: var(--color-slate-900);
+  --color-surface-base: var(--color-slate-950);
+  --color-info-contrast: var(--color-cyan-50);
+  --color-info-pale: var(--color-cyan-200);
+  --color-info-light: var(--color-cyan-300);
+  --color-info: var(--color-cyan-400);
+  --color-info-bright: var(--color-cyan-500);
+  --color-info-strong: var(--color-cyan-600);
+  --color-info-surface: var(--color-cyan-900);
+  --color-info-base: var(--color-cyan-950);
+  --color-danger-contrast: var(--color-rose-50);
+  --color-danger-pale: var(--color-rose-200);
+  --color-danger-light: var(--color-rose-300);
+  --color-danger: var(--color-rose-400);
+  --color-danger-bright: var(--color-rose-500);
+  --color-danger-strong: var(--color-rose-600);
+  --color-danger-surface: var(--color-rose-900);
+  --color-danger-base: var(--color-rose-950);
+  --color-success-contrast: var(--color-emerald-50);
+  --color-success-pale: var(--color-emerald-100);
+  --color-success-soft: var(--color-emerald-200);
+  --color-success-light: var(--color-emerald-300);
+  --color-success: var(--color-emerald-400);
+  --color-success-bright: var(--color-emerald-500);
+  --color-success-strong: var(--color-emerald-600);
+  --color-success-surface: var(--color-emerald-900);
+  --color-success-base: var(--color-emerald-950);
+  --color-warning-pale: var(--color-amber-200);
+  --color-warning-light: var(--color-amber-300);
+  --color-warning: var(--color-amber-400);
+  --color-warning-bright: var(--color-amber-500);
+  --color-warning-strong: var(--color-amber-600);
+  --color-link: var(--color-blue-400);
+  --color-link-bright: var(--color-blue-500);
+  --color-link-surface: var(--color-blue-900);
+  --color-reward: var(--color-orange-400);
+  --color-reward-bright: var(--color-orange-500);
+  --color-error-light: var(--color-red-400);
+  --color-error: var(--color-red-500);
+  --color-award: var(--color-yellow-400);
+  --color-award-bright: var(--color-yellow-500);
+  --color-on-solid: #fff;
+  --color-ink: #000;
+  --z-index-raised: 10;
+  --z-index-floating: 20;
+  --z-index-navigation: 30;
+  --z-index-header: 40;
+  --z-index-modal: 50;
+  --z-index-toast: 100;
+}
+
+@layer base {
+  :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+}
+
+@theme inline {
+  --color-shell: #0c0b14;
+  --color-settlement: #1a1625;
+  --color-settlement-raised: #252035;
+  --color-drawer: #0c0d18;
+  --shadow-settlement: 0 0 20px rgba(168, 85, 247, 0.15);
+  --shadow-settlement-hover: 0 0 25px rgba(168, 85, 247, 0.25);
+  --shadow-notice: 0 0 15px rgba(225, 29, 72, 0.1);
+  --shadow-home: 0 0 20px rgba(168, 85, 247, 0.2);
+  --drop-shadow-brand: 0 0 8px rgba(168, 85, 247, 0.8);
+}

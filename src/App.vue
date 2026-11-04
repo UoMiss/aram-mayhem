@@ -15,9 +15,11 @@ import {
   subscribeGameflow,
   subscribeLcuStatus,
 } from '@/services/lcu.service'
-import { useAppStore } from '@/stores/app'
+import { useDesktopStore } from '@/stores/desktop'
+import { useConnectionStore } from '@/stores/connection'
 
-const app = useAppStore()
+const connection = useConnectionStore()
+const desktop = useDesktopStore()
 
 function diagnosticCode(error: unknown, fallback: string): string {
   return error instanceof LcuServiceError ? error.code : fallback
@@ -26,73 +28,101 @@ function diagnosticCode(error: unknown, fallback: string): string {
 let lcuUnlisten: (() => void) | undefined
 let gameflowUnlisten: (() => void) | undefined
 let disposed = false
+let lcuRetryTimer: ReturnType<typeof setTimeout> | undefined
+let gameflowRetryTimer: ReturnType<typeof setTimeout> | undefined
 
-// Silent startup probes: health, connection and gameflow. No test-only UI is rendered.
-onMounted(() => {
-  void getAppHealth().catch(() => undefined)
-
-  void (async () => {
-    try {
-      const unlisten = await subscribeLcuStatus((status) => app.setLcuStatus(status))
+async function subscribeConnection() {
+  let fallback = 'lcu.subscribe_failed'
+  try {
+    if (!lcuUnlisten) {
+      const unlisten = await subscribeLcuStatus(
+        (status) => {
+          if (!disposed) connection.setLcuStatus(status)
+        },
+        (error) => {
+          if (!disposed) connection.setLcuError(error.code)
+        },
+      )
       if (disposed) {
         unlisten()
         return
       }
       lcuUnlisten = unlisten
-      app.clearLcuError()
-    } catch (error) {
-      app.setLcuError(diagnosticCode(error, 'lcu.subscribe_failed'))
     }
+    fallback = 'lcu.status_failed'
+    // Re-read after every successful subscription, including recovery: an event
+    // may have been emitted while the frontend was temporarily unsubscribed.
+    const status = await getLcuConnectionStatus()
+    if (disposed) return
+    connection.setLcuStatus(status)
+    connection.clearLcuError()
+  } catch (error) {
+    if (disposed) return
+    connection.setLcuError(diagnosticCode(error, fallback))
+    lcuRetryTimer = setTimeout(() => {
+      void subscribeConnection()
+    }, 2000)
+  }
+}
 
-    try {
-      const status = await getLcuConnectionStatus()
-      if (disposed) return
-      app.setLcuStatus(status)
-    } catch (error) {
-      app.setLcuError(diagnosticCode(error, 'lcu.status_failed'))
-    }
-
-    try {
-      const status = await startLcuMonitoring()
-      if (disposed) {
-        void stopLcuMonitoring().catch(() => undefined)
-        return
-      }
-      app.setLcuStatus(status)
-    } catch (error) {
-      app.setLcuError(diagnosticCode(error, 'lcu.start_failed'))
-    }
-  })()
-
-  void (async () => {
-    try {
+async function subscribeFlow() {
+  try {
+    if (!gameflowUnlisten) {
       const unlisten = await subscribeGameflow((event) => {
-        if (event.type === 'updated') app.setGameflowSnapshot(event.snapshot)
+        if (!disposed && event.type === 'updated') connection.setGameflowSnapshot(event.snapshot)
       })
       if (disposed) {
         unlisten()
         return
       }
       gameflowUnlisten = unlisten
-    } catch {
-      // Gameflow subscription is optional; existing UI remains Mock-backed.
     }
+    const snapshot = await getGameflowSnapshot()
+    if (!disposed) connection.setGameflowSnapshot(snapshot)
+  } catch {
+    if (!disposed)
+      gameflowRetryTimer = setTimeout(() => {
+        void subscribeFlow()
+      }, 2000)
+  }
+}
 
+// Silent startup probes: health, connection and gameflow. No test-only UI is rendered.
+onMounted(() => {
+  void getAppHealth()
+    .then((health) => {
+      if (!disposed) desktop.setAppVersion(health.appVersion)
+    })
+    .catch(() => undefined)
+
+  void (async () => {
+    await subscribeConnection()
+
+    if (disposed) return
     try {
-      const snapshot = await getGameflowSnapshot()
+      const status = await startLcuMonitoring()
+      if (disposed) {
+        void stopLcuMonitoring().catch(() => undefined)
+        return
+      }
+      connection.setLcuStatus(status)
+    } catch (error) {
       if (disposed) return
-      app.setGameflowSnapshot(snapshot)
-    } catch {
-      // No gameflow snapshot is fabricated on unsupported platforms.
+      connection.setLcuError(diagnosticCode(error, 'lcu.start_failed'))
     }
+  })()
 
+  void (async () => {
+    await subscribeFlow()
+
+    if (disposed) return
     try {
       const snapshot = await startGameflowMonitoring()
       if (disposed) {
         void stopGameflowMonitoring().catch(() => undefined)
         return
       }
-      app.setGameflowSnapshot(snapshot)
+      connection.setGameflowSnapshot(snapshot)
     } catch {
       // Gameflow monitoring is non-fatal; the last snapshot is retained.
     }
@@ -101,6 +131,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   disposed = true
+  clearTimeout(lcuRetryTimer)
+  clearTimeout(gameflowRetryTimer)
   lcuUnlisten?.()
   lcuUnlisten = undefined
   gameflowUnlisten?.()
@@ -112,7 +144,7 @@ onUnmounted(() => {
 
 <template>
   <div class="app-viewport">
-    <AppShell v-if="app.isConnected" />
+    <AppShell v-if="connection.isConnected" />
     <ConnectionScreen v-else />
     <AppToast />
   </div>

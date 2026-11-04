@@ -11,12 +11,12 @@
     "build": "pnpm run typecheck && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
     "check:baseline": "node scripts/check-baseline.mjs",
-    "check": "pnpm run check:baseline && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build",
+    "check": "pnpm run check:baseline && pnpm run format:check && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -37,10 +37,12 @@
     "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^22.16.0",
     "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.5.1",
     "eslint": "^9.34.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.4.0",
     "globals": "^16.3.0",
+    "happy-dom": "^21.0.4",
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.12",
     "typescript": "~5.9.3",
@@ -52,7 +54,8 @@
   "packageManager": "pnpm@10.34.9",
   "pnpm": {
     "overrides": {
-      "minimatch": "11.0.3"
+      "minimatch": "11.0.3",
+      "js-beautify>glob": "14.0.2"
     }
   }
 }

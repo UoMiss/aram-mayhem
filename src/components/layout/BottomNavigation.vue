@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { useAppStore, type AppTab } from '@/stores/app'
+import { useUiStore, type AppTab } from '@/stores/ui'
 
 type NavTab = Exclude<AppTab, 'match-detail'>
 
@@ -10,7 +10,7 @@ interface NavItem {
   icon: string
 }
 
-const app = useAppStore()
+const ui = useUiStore()
 const { t } = useI18n({ useScope: 'global' })
 
 const tabs: NavItem[] = [
@@ -22,13 +22,13 @@ const tabs: NavItem[] = [
 
 /** 与原始 switchTab() 一致：结算页归属战绩 Tab。 */
 function isActive(tab: NavTab): boolean {
-  return app.activeTab === tab || (app.activeTab === 'match-detail' && tab === 'history')
+  return ui.activeTab === tab || (ui.activeTab === 'match-detail' && tab === 'history')
 }
 </script>
 
 <template>
   <nav
-    class="nav-glow glass-card fixed right-0 bottom-0 left-0 z-40 mx-auto max-w-[480px] border-t border-white/10 bg-slate-950/90 transition-transform duration-300"
+    class="nav-glow glass-card fixed right-0 bottom-0 left-0 z-header mx-auto max-w-[480px] border-t border-on-solid/10 bg-surface-base/90 transition-transform duration-300"
     :aria-label="t('a11y.mainNav')"
   >
     <div class="grid h-16 grid-cols-4">
@@ -37,9 +37,9 @@ function isActive(tab: NavTab): boolean {
         :key="tab.key"
         type="button"
         class="flex cursor-pointer flex-col items-center justify-center gap-1 transition-all"
-        :class="isActive(tab.key) ? 'active-tab' : 'text-slate-400 hover:text-slate-200'"
+        :class="isActive(tab.key) ? 'active-tab' : 'text-text-muted hover:text-text-soft'"
         :aria-current="isActive(tab.key) ? 'page' : undefined"
-        @click="app.setActiveTab(tab.key)"
+        @click="ui.setActiveTab(tab.key)"
       >
         <i :class="[tab.icon, 'text-lg']"></i>
         <span class="text-[11px] font-medium">{{ t(tab.labelKey) }}</span>

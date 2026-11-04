@@ -1,3 +1,4 @@
+import { APP_VERSION } from '@/shared/constants/app'
 import type { AppHealth, DesktopAdapter } from '@/types/desktop'
 import type { GameflowAdapter, GameflowSnapshot, LcuAdapter, LcuStatusDto } from '@/types/lcu'
 
@@ -8,7 +9,7 @@ export const browserAdapter: DesktopAdapter = {
       status: 'ok',
       runtime: 'browser',
       appName: 'ARAM: Mayhem',
-      appVersion: '0.1.0',
+      appVersion: APP_VERSION,
       platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown',
       simulated: true,
     }
