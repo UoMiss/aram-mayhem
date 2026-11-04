@@ -123,3 +123,19 @@
 ## 2026-11-05 开发标准修复
 
 本轮已修复 LCU 终态会话重复、WebSocket 恢复、本地代理、领域 Store、IPC 运行时校验、订阅生命周期、语义主题、抽屉无障碍、统一版本及 CI 门禁。详见 [修复与验证记录](FRONTEND_REMEDIATION.md)。真实 Windows LCU 和真实战绩/算分/结算闭环仍未完成验收。
+
+## 2026-11-05 修复推送与 Windows 构建验证
+
+- 修复提交：`3b0b6527d0865aee438a8348aa7656b5d0c0d3bc`，已推送 main。
+- [Windows Validation](https://github.com/UoMiss/aram-mayhem/actions/runs/41890897572)：success。
+- [Windows Release / NSIS](https://github.com/UoMiss/aram-mayhem/actions/runs/41890924004)：success。
+- 前端 23 文件 / 112 测试通过；Windows Rust 56 测试通过（本机 macOS 为 55，Windows-only 共享锁测试额外 1 个）。
+- MSVC cargo check、Rust 格式、前端格式/类型/零警告 ESLint、完整及生产依赖审计均通过。
+- [安装包 Artifact](https://github.com/UoMiss/aram-mayhem/actions/runs/41890924004/artifacts/13353537277)：`aram-mayhem-windows-x64`，id `13353537277`。
+- 安装包版本 `0.1.0`，文件 `aram-mayhem-windows-x64-setup.exe`，4,331,290 bytes；下载后独立计算 SHA-256，与流水线校验文件一致：
+
+```text
+94ca3bb4428a88e0c874624572812dcda23fb55e3322565344268ffc06290534
+```
+
+- 本次只完成 CI 编译、自动化测试、NSIS 产物及完整性验证；真实 Windows 桌面/LCU 登录、重启、断线恢复和完整对局流程仍需实机验收。

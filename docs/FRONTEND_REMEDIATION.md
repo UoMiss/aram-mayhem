@@ -27,14 +27,14 @@
 
 浏览器人工复核：最新代码使用独立本地端口，确认规则互斥切换、抽屉进入/关闭后的焦点恢复、设置独立开关、顶栏和设置版本一致、更新未接入提示；未把浏览器 Mock 视为真实 LCU 连接。
 
-Windows 真实 LCU、Windows-only 测试、安装包、原生 WebView 和完整桌面流程仍需 Windows 环境验收。本地 Rust 测试只能证明本机平台及模拟源场景。
+本轮修复推送后，Windows CI 已验证 MSVC 编译、56 个 Rust 测试（含 Windows-only 共享锁测试）及 NSIS 构建，安装包 SHA-256 已独立核对。真实 LCU、原生 WebView 和完整桌面流程仍需实机验收；不能以 CI 模拟源测试代替真实客户端。
 
 ## 实际检查结果
 
 - 前端：`pnpm check` 通过，23 个测试文件 / 112 个测试；包含格式、Strict 类型、零警告 ESLint、原始设计文件校验和生产构建。
 - Rust：工作区自带工具链，`cargo test --locked --offline` 55 个测试通过；`cargo check`、`cargo fmt -- --check` 通过。
 - 新增 Vue Test Utils / happy-dom 仅用于开发测试。首次审计发现 js-beautify 的 glob 漏洞，已通过限定 `js-beautify>glob=14.0.2` 修复；修复版本兼容项目 Node 基线。
-- `pnpm audit` 与 `pnpm audit --prod` 均无已知漏洞；历史 Windows CI 结果不视为本次变更的 Windows 验证。
+- `pnpm audit` 与 `pnpm audit --prod` 均无已知漏洞；本次 Windows CI 结果与下载链接见 `docs/STATUS.md` 的“修复推送与 Windows 构建验证”。
 
 ## 本轮边界
 
