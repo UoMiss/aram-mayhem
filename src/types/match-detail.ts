@@ -7,7 +7,7 @@ export type SettlementLayout = 'group' | 'global'
 
 export interface SettlementStat {
   key: 'damage' | 'taken' | 'healing'
-  value: number
+  value: number | string | null
   percent: number
   tone: StatTone
 }
@@ -17,13 +17,14 @@ export interface SettlementPlayer {
   team: TeamSide
   champion: string
   championImage: string
-  level: number
-  rank: number
+  level: number | null
+  rank: number | null
   nickname: string
-  relation: PlayerRelation
+  relation: PlayerRelation | null
   kda: MatchKda
   stats: readonly SettlementStat[]
-  score: number
+  score: number | null
+  ruleValue?: string | null
 }
 
 export interface RedPacketEntry {
@@ -36,8 +37,7 @@ export interface RedPacketNotice {
 }
 
 /**
- * 当前只有一份共享的静态结算示例，不绑定 match-001..match-007 的“真实”结算。
- * `isSharedFixture` 仅供数据层与文档标注，不在 UI 显示额外说明。
+ * 浏览器共享静态演示示例，不与真实对局绑定；桌面使用 SettlementSnapshot。
  */
 export interface MatchDetailFixture {
   id: string
@@ -46,12 +46,4 @@ export interface MatchDetailFixture {
   duration: string
   redPacket: RedPacketNotice
   players: readonly SettlementPlayer[]
-}
-
-/**
- * 未来按 matchId 载入真实结算详情的数据源契约。
- * 当前阶段只保留类型；页面仍使用共享静态 fixture，不发起请求。
- */
-export interface MatchDetailSource {
-  load(matchId: string): Promise<MatchDetailFixture>
 }

@@ -116,8 +116,7 @@ const players: readonly SettlementPlayer[] = [
 ]
 
 /**
- * 当前唯一结算 fixture。它不与 7 条历史战绩逐条对应；selectedMatchId 仅保留
- * 导航上下文，等未来按 matchId 获取真实详情时再替换为独立数据源。
+ * 浏览器演示结算；与真实对局详情分开，桌面查询失败时也不使用。
  */
 export const MATCH_DETAIL_FIXTURE: MatchDetailFixture = {
   id: 'shared-settlement-fixture',

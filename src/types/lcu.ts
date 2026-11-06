@@ -81,6 +81,8 @@ export interface ChampionSelectSnapshot {
 
 export interface GameSessionContext {
   sessionKey: string
+  gameId?: string | null
+  game?: LobbySnapshot | null
   connectionGeneration: number
   phase: GameflowPhase
   startedAt: number

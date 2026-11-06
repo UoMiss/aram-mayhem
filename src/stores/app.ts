@@ -29,9 +29,7 @@ export const useAppStore = defineStore('app', () => {
   const feedbackRefs = storeToRefs(feedback)
   return {
     activeTab: uiRefs.activeTab,
-    showDetails: uiRefs.showDetails,
     setActiveTab: ui.setActiveTab,
-    toggleDetails: ui.toggleDetails,
     connectionPhase: connectionRefs.connectionPhase,
     lcuStatus: connectionRefs.lcuStatus,
     gameflowSnapshot: connectionRefs.gameflowSnapshot,

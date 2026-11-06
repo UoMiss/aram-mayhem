@@ -16,14 +16,6 @@ export const SCORE_RULE_DESCRIPTION_KEYS: Record<ScoreRule, string> = {
   tail: 'rules.tail.description',
 }
 
-export const HOME_ROOM_PHASE_KEYS: Record<HomeRoomPhase, string> = {
-  inRoom: 'home.inRoom',
-}
-
-export const HOME_GAME_MODE_KEYS: Record<HomeGameMode, string> = {
-  normal: 'home.matchMode',
-}
-
 export const HISTORY_FILTER_KEYS: Record<HistoryFilter, string> = {
   all: 'history.filters.all',
   hex: 'history.modes.hex',
@@ -31,6 +23,8 @@ export const HISTORY_FILTER_KEYS: Record<HistoryFilter, string> = {
 }
 
 export const MATCH_MODE_KEYS: Record<MatchMode, string> = {
+  aram: 'history.modes.aram',
+  other: 'history.modes.other',
   hex: 'history.modes.hex',
   custom: 'history.modes.custom',
 }
@@ -81,4 +75,13 @@ export const GAMEFLOW_PHASE_KEYS: Record<GameflowPhase, string> = {
   end_of_game: 'gameflow.phases.end_of_game',
   terminated_in_error: 'gameflow.phases.terminated_in_error',
   unknown: 'gameflow.phases.unknown',
+}
+
+export const HOME_ROOM_PHASE_KEYS: Record<HomeRoomPhase, string> = {
+  ...GAMEFLOW_PHASE_KEYS,
+  inRoom: 'home.inRoom',
+}
+export const HOME_GAME_MODE_KEYS: Record<HomeGameMode, string> = {
+  ...MATCH_MODE_KEYS,
+  normal: 'home.matchMode',
 }

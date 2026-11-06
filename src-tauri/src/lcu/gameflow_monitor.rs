@@ -432,24 +432,34 @@ impl GameflowSource for SystemGameflowSource {
         } else if matches!(phase, GameflowPhase::ChampSelect) {
             if let Some(value) = http.get_json_optional(client, CHAMP_SELECT_PATH).await? {
                 let snapshot = parse_champion_select(&value)?;
-                game_id = snapshot.game_id.clone();
+                game_id = snapshot
+                    .game_id
+                    .as_deref()
+                    .filter(|id| id.parse::<u64>().is_ok_and(|number| number > 0))
+                    .map(str::to_owned);
                 champion_select = Some(snapshot);
             }
         }
 
-        if game_id.is_none()
-            && matches!(
-                phase,
-                GameflowPhase::GameStart
-                    | GameflowPhase::InProgress
-                    | GameflowPhase::Reconnect
-                    | GameflowPhase::WaitingForStats
-                    | GameflowPhase::PreEndOfGame
-                    | GameflowPhase::EndOfGame
-            )
-        {
-            if let Some(value) = http.get_json_optional(client, SESSION_PATH).await? {
-                game_id = extract_game_id(&value);
+        let mut game = None;
+        if matches!(
+            phase,
+            GameflowPhase::ChampSelect
+                | GameflowPhase::GameStart
+                | GameflowPhase::InProgress
+                | GameflowPhase::Reconnect
+                | GameflowPhase::WaitingForStats
+                | GameflowPhase::PreEndOfGame
+                | GameflowPhase::EndOfGame
+        ) {
+            if let Ok(Some(value)) = http.get_json_optional(client, SESSION_PATH).await
+                && value
+                    .get("phase")
+                    .and_then(|value| value.as_str())
+                    .is_none_or(|value| value == raw_phase)
+            {
+                game_id = game_id.or_else(|| extract_game_id(&value));
+                game = extract_game_metadata(&value);
             }
         }
 
@@ -459,6 +469,7 @@ impl GameflowSource for SystemGameflowSource {
             lobby,
             champion_select,
             game_id,
+            game,
         })
     }
 
@@ -480,11 +491,42 @@ impl GameflowSource for SystemGameflowSource {
     }
 }
 
+fn extract_game_metadata(value: &serde_json::Value) -> Option<LobbySnapshot> {
+    let data = value.get("gameData")?;
+    let queue_id = if data.get("isCustomGame").and_then(|value| value.as_bool()) == Some(true) {
+        Some(0)
+    } else {
+        data.pointer("/queue/id").and_then(|value| value.as_i64())
+    };
+    let game_mode = data
+        .pointer("/queue/gameMode")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let member_count = data
+        .get("teamOne")
+        .and_then(|value| value.as_array())
+        .zip(data.get("teamTwo").and_then(|value| value.as_array()))
+        .filter(|(one, two)| !one.is_empty() && !two.is_empty())
+        .and_then(|(one, two)| u32::try_from(one.len() + two.len()).ok())
+        .filter(|count| *count > 0);
+    if queue_id.is_none() && game_mode.is_none() && member_count.is_none() {
+        return None;
+    }
+    Some(LobbySnapshot {
+        lobby_id: None,
+        queue_id,
+        game_mode,
+        member_count,
+        updated_at: crate::lcu::models::now_ms(),
+    })
+}
+
 fn extract_game_id(value: &serde_json::Value) -> Option<String> {
     value
         .pointer("/gameData/gameId")
         .and_then(value_as_string)
         .or_else(|| value.get("gameId").and_then(value_as_string))
+        .filter(|id| id.parse::<u64>().is_ok_and(|number| number > 0))
 }
 
 fn value_as_string(value: &serde_json::Value) -> Option<String> {
@@ -581,6 +623,7 @@ mod tests {
             lobby: None,
             champion_select: None,
             game_id: None,
+            game: None,
         }
     }
 
@@ -675,6 +718,7 @@ mod tests {
                     lobby: Some(lobby),
                     champion_select: None,
                     game_id: None,
+                    game: None,
                 }),
                 Ok(GameflowReading {
                     raw_phase: "ChampSelect".to_string(),
@@ -682,6 +726,7 @@ mod tests {
                     lobby: None,
                     champion_select: Some(champ),
                     game_id: Some("99".to_string()),
+                    game: None,
                 }),
             ],
         );

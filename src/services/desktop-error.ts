@@ -30,6 +30,8 @@ const LCU_ERROR_MESSAGES: Record<string, string> = {
   invalid_response: '客户端返回的数据格式不正确，请重试',
   http_status: '客户端暂时无法处理请求，请重试',
   cancelled: '操作已取消',
+  not_logged_in: '请先登录英雄联盟客户端后重试',
+  account_changed: '账号已切换，请重新加载',
   internal: '客户端连接失败，请重试',
 }
 

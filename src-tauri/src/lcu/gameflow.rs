@@ -144,6 +144,10 @@ impl ChampionSelectSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct GameSessionContext {
     pub session_key: String,
+    pub game_id: Option<String>,
+    #[serde(skip)]
+    pub opening_observed: Option<std::time::Instant>,
+    pub game: Option<LobbySnapshot>,
     pub connection_generation: u64,
     pub phase: GameflowPhase,
     pub started_at: u64,
@@ -194,6 +198,7 @@ pub struct GameflowReading {
     pub lobby: Option<LobbySnapshot>,
     pub champion_select: Option<ChampionSelectSnapshot>,
     pub game_id: Option<String>,
+    pub game: Option<LobbySnapshot>,
 }
 
 #[derive(Debug, Clone)]
@@ -233,7 +238,20 @@ impl GameSessionTracker {
         }
 
         let lobby_id = lobby.as_ref().and_then(|value| value.lobby_id.as_deref());
-        let start_new = self.should_start_new(generation, phase, lobby_id);
+        let game_changed = self
+            .current
+            .as_ref()
+            .and_then(|session| session.game_id.as_ref())
+            .zip(game_id.as_ref())
+            .is_some_and(|(old, new)| old != new);
+        // The opening can be the first observation with the final game ID.
+        // Keep the selected rule and preview attached to the same session.
+        let entering_game = self.current.as_ref().is_some_and(|session| {
+            session.phase == GameflowPhase::ChampSelect
+                && matches!(phase, GameflowPhase::GameStart | GameflowPhase::InProgress)
+        });
+        let start_new =
+            (game_changed && !entering_game) || self.should_start_new(generation, phase, lobby_id);
 
         if start_new {
             let ended = self.current.take();
@@ -248,6 +266,10 @@ impl GameSessionTracker {
             self.generation = generation;
             self.current = Some(GameSessionContext {
                 session_key: key,
+                game_id: game_id.clone(),
+                opening_observed: matches!(phase, GameflowPhase::GameStart)
+                    .then(std::time::Instant::now),
+                game: None,
                 connection_generation: generation,
                 phase: phase.clone(),
                 started_at: now,
@@ -281,7 +303,18 @@ impl GameSessionTracker {
         };
 
         let mut changed = false;
+        if game_id.is_some() && current.game_id != *game_id {
+            current.game_id = game_id.clone();
+            changed = true;
+        }
         if current.phase != *phase {
+            if current.opening_observed.is_none()
+                && (matches!(phase, GameflowPhase::GameStart)
+                    || (matches!(phase, GameflowPhase::InProgress)
+                        && matches!(current.phase, GameflowPhase::ChampSelect)))
+            {
+                current.opening_observed = Some(std::time::Instant::now());
+            }
             current.phase = phase.clone();
             changed = true;
         }
@@ -406,13 +439,25 @@ impl GameflowMachine {
         transport: GameflowTransport,
     ) -> GameflowChanges {
         let previous = self.snapshot.clone();
-        let observation = self.tracker.observe(
+        let mut observation = self.tracker.observe(
             generation,
             &reading.phase,
             &reading.lobby,
             &reading.champion_select,
             &reading.game_id,
         );
+        if let Some(context) = observation.context.as_mut() {
+            let previous_game = previous
+                .session
+                .as_ref()
+                .filter(|session| session.session_key == context.session_key)
+                .and_then(|session| session.game.as_ref());
+            context.game = match (previous_game, reading.game) {
+                (Some(old), Some(new)) if old.same_data(&new) => Some(old.clone()),
+                (_, Some(new)) => Some(new),
+                (old, None) => old.cloned(),
+            };
+        }
         let mut next = previous.clone();
         next.connected = true;
         next.phase = Some(reading.phase);
@@ -427,9 +472,16 @@ impl GameflowMachine {
             self.snapshot = next.clone();
         }
         GameflowChanges {
-            previous,
+            previous: previous.clone(),
             current: self.snapshot.clone(),
-            session_ended: observation.ended,
+            session_ended: observation.ended.map(|ended| {
+                previous
+                    .session
+                    .as_ref()
+                    .filter(|session| session.session_key == ended.session_key)
+                    .cloned()
+                    .unwrap_or(ended)
+            }),
         }
     }
 
@@ -586,15 +638,19 @@ mod tests {
             GameflowPhase::EndOfGame,
         ];
         let mut first_key = None;
+        let game_id = Some("42".to_string());
         for (index, phase) in phases.iter().enumerate() {
             let observation = tracker.observe(
                 1,
                 phase,
                 if index == 0 { &lobby } else { &None },
                 &None,
-                &None,
+                if index == 4 { &game_id } else { &None },
             );
             let context = observation.context.expect("session");
+            if index >= 4 {
+                assert_eq!(context.game_id, game_id);
+            }
             if let Some(key) = &first_key {
                 assert_eq!(&context.session_key, key);
                 assert_eq!(context.phase, *phase);
@@ -606,6 +662,33 @@ mod tests {
         assert!(next.context.is_some());
         assert_ne!(next.context.unwrap().session_key, first_key.unwrap());
         assert!(next.ended.is_some());
+    }
+
+    #[test]
+    fn entering_in_progress_with_a_changed_game_id_keeps_the_opening_session() {
+        let mut tracker = GameSessionTracker::new();
+        let select = tracker
+            .observe(
+                1,
+                &GameflowPhase::ChampSelect,
+                &None,
+                &None,
+                &Some("41".into()),
+            )
+            .context
+            .unwrap();
+        let started = tracker.observe(
+            1,
+            &GameflowPhase::InProgress,
+            &None,
+            &None,
+            &Some("42".into()),
+        );
+        assert!(started.ended.is_none());
+        let game = started.context.unwrap();
+        assert_eq!(game.session_key, select.session_key);
+        assert_eq!(game.game_id.as_deref(), Some("42"));
+        assert!(game.opening_observed.is_some());
     }
 
     #[test]
@@ -650,6 +733,7 @@ mod tests {
                 lobby: None,
                 champion_select: None,
                 game_id: Some("42".to_string()),
+                game: None,
             };
             let first = machine.observe(1, reading.clone(), GameflowTransport::Polling);
             let repeated = machine.observe(1, reading, GameflowTransport::Polling);

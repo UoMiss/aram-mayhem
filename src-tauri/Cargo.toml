@@ -1,6 +1,6 @@
 [package]
 name = "aram-mayhem"
-version = "0.1.0"
+version = "0.1.1"
 description = "ARAM: Mayhem desktop shell"
 authors = ["ARAM: Mayhem"]
 edition = "2024"
@@ -24,6 +24,11 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["c
 native-tls = "0.2.18"
 base64 = "0.23.1"
 futures-util = "0.3"
+tauri-plugin-autostart = "2"
+semver = "1"
+getrandom = "0.4"
+tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
 sysinfo = "0.40.1"
+tauri = { version = "2.12.5", features = ["tray-icon"] }

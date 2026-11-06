@@ -1,0 +1,70 @@
+{
+  "gameId": "18446744073709551615",
+  "queueId": 2400,
+  "gameMode": "ARAM",
+  "gameType": "MATCHED_GAME",
+  "gameCreation": 1793760000000,
+  "gameDuration": 1204,
+  "participantIdentities": [
+    { "participantId": 3, "player": { "puuid": "rival-3", "gameName": "Rival", "tagLine": "CN1" } },
+    { "participantId": 4, "player": { "puuid": "rival-4" } },
+    { "participantId": 2, "player": { "puuid": "ally-2", "summonerName": "Ally" } },
+    {
+      "participantId": 1,
+      "player": { "puuid": "test-current-account", "gameName": "Current", "tagLine": "CN1" }
+    }
+  ],
+  "participants": [
+    {
+      "participantId": 1,
+      "teamId": 100,
+      "championId": 221,
+      "stats": {
+        "kills": 12,
+        "deaths": 4,
+        "assists": 18,
+        "win": true,
+        "champLevel": 18,
+        "totalDamageDealtToChampions": 99990,
+        "totalDamageTaken": 18000,
+        "totalHeal": 0
+      }
+    },
+    {
+      "participantId": 2,
+      "teamId": 100,
+      "championId": 1,
+      "stats": {
+        "kills": 4,
+        "deaths": 1,
+        "assists": 17,
+        "win": true,
+        "totalDamageDealtToChampions": 10929
+      }
+    },
+    {
+      "participantId": 3,
+      "teamId": 200,
+      "championId": 777,
+      "stats": {
+        "kills": 5,
+        "deaths": 8,
+        "assists": 3,
+        "win": false,
+        "totalDamageDealtToChampions": 12349
+      }
+    },
+    {
+      "participantId": 4,
+      "teamId": 200,
+      "championId": 999999,
+      "stats": {
+        "kills": 2,
+        "deaths": 8,
+        "assists": 4,
+        "win": false,
+        "totalDamageDealtToChampions": 10929
+      }
+    }
+  ]
+}

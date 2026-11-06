@@ -27,6 +27,21 @@ describe('team randomizer', () => {
     }
   })
 
+  it('preserves all participants for ten-player and odd-sized lobbies', () => {
+    for (const count of [0, 1, 2, 9, 10, 16]) {
+      const players = Array.from({ length: count }, (_, index) => ({
+        id: String(index),
+        name: String(index),
+      }))
+      const split = splitTeams(players, seededRandom(7))
+      expect(split.groupA.length + split.groupB.length).toBe(count)
+      expect(Math.abs(split.groupA.length - split.groupB.length)).toBeLessThanOrEqual(1)
+      expect(new Set([...split.groupA, ...split.groupB].map((player) => player.id)).size).toBe(
+        count,
+      )
+    }
+  })
+
   it('does not mutate the original player array', () => {
     const before = names(TEAM_DRAW_PLAYERS)
     const shuffled = shufflePlayers(TEAM_DRAW_PLAYERS, seededRandom(7))

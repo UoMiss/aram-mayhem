@@ -149,18 +149,6 @@
     box-sizing: border-box;
   }
 
-  /* 阵营标签 */
-  .badge-red {
-    background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(244, 63, 94, 0.1));
-    color: #fda4af;
-    border: 1px solid rgba(244, 63, 94, 0.3);
-  }
-  .badge-blue {
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(6, 182, 212, 0.1));
-    color: #67e8f9;
-    border: 1px solid rgba(6, 182, 212, 0.3);
-  }
-
   /* 结算页玩家排名 */
   .player-rank {
     font-family: 'Arial Black', Impact, sans-serif;

@@ -1,3 +1,9 @@
+import type { MatchRuleRecord, OpeningChoice } from '@/types/match-rule-api'
+import { isSettlementSnapshot } from '@/shared/ipc/settlement-contract'
+import type { SettlementRequest } from '@/types/settlement-api'
+import { isParticipantSnapshot } from '@/shared/ipc/participants-contract'
+import { isHomeSnapshot } from '@/shared/ipc/home-contract'
+import { isHistorySnapshot } from '@/shared/ipc/history-contract'
 import {
   isAppHealth,
   isLcuStatus,
@@ -35,6 +41,14 @@ export const tauriAdapter: DesktopAdapter = {
       throw new DesktopServiceError('desktop.ipc_failed', 'Desktop health check failed')
     }
   },
+}
+
+export async function exitDesktopApp() {
+  try {
+    await invoke('app_exit')
+  } catch {
+    throw new DesktopServiceError('desktop.ipc_failed', 'Desktop exit failed')
+  }
 }
 
 /** The only frontend module that knows the Rust LCU command/event names. */
@@ -148,6 +162,149 @@ export const tauriGameflowAdapter: GameflowAdapter = {
     } catch (error) {
       for (const stop of unlisten) stop()
       throw normalizeLcuError(error)
+    }
+  },
+}
+
+/** Read-only history commands share the same validated IPC boundary. */
+export const tauriHistoryAdapter = {
+  async getMatchHistory(offset = 0) {
+    try {
+      return parseContract(
+        await (offset
+          ? invoke<unknown>('lcu_get_match_history', { offset })
+          : invoke<unknown>('lcu_get_match_history')),
+        isHistorySnapshot,
+      )
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.history_failed')
+    }
+  },
+}
+
+export const tauriHomeAdapter = {
+  async getHomeSnapshot() {
+    try {
+      return parseContract(await invoke<unknown>('lcu_get_home_snapshot'), isHomeSnapshot)
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.home_failed')
+    }
+  },
+}
+
+export const tauriParticipantsAdapter = {
+  async getCustomParticipants() {
+    try {
+      return parseContract(
+        await invoke<unknown>('lcu_get_custom_participants'),
+        isParticipantSnapshot,
+      )
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.participants_failed')
+    }
+  },
+}
+
+export const tauriSettlementAdapter = {
+  async getSettlement(request: SettlementRequest) {
+    try {
+      return parseContract(
+        await invoke<unknown>('lcu_get_settlement', { ...request }),
+        isSettlementSnapshot,
+      )
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.settlement_failed')
+    }
+  },
+}
+
+interface UpdateCheck {
+  configured: boolean
+  latest: string | null
+  available: boolean
+}
+
+function isUpdateCheck(value: unknown): value is UpdateCheck {
+  if (!value || typeof value !== 'object') return false
+  const result = value as Record<string, unknown>
+  return (
+    typeof result.configured === 'boolean' &&
+    typeof result.available === 'boolean' &&
+    (result.latest === null || typeof result.latest === 'string') &&
+    (!result.available || (result.configured && typeof result.latest === 'string'))
+  )
+}
+
+export const tauriSettingsAdapter = {
+  async autoStart(enabled?: boolean) {
+    try {
+      return parseContract(
+        await invoke<unknown>('app_auto_start', { enabled }),
+        (value): value is boolean => typeof value === 'boolean',
+      )
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.autostart_failed')
+    }
+  },
+  async setAutoRetry(enabled: boolean) {
+    try {
+      await invoke('lcu_set_auto_retry', { enabled })
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.auto_retry_failed')
+    }
+  },
+  async checkUpdate() {
+    try {
+      return parseContract(await invoke<unknown>('app_check_update'), isUpdateCheck)
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.update_check_failed')
+    }
+  },
+}
+
+function isLockedMatchRule(value: unknown): value is MatchRuleRecord {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.accountKey === 'string' &&
+    /^[A-Za-z0-9_-]{1,128}$/.test(record.accountKey) &&
+    typeof record.gameId === 'string' &&
+    /^[1-9][0-9]{0,19}$/.test(record.gameId) &&
+    (record.rule === null ||
+      record.rule === 'damage' ||
+      record.rule === 'tail' ||
+      record.rule === 'lucky') &&
+    (record.luckyDigit === null || (record.rule === 'lucky' && isLuckyDigit(record.luckyDigit)))
+  )
+}
+
+function isLuckyDigit(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 9
+}
+
+export const tauriMatchRuleAdapter = {
+  async lock(choice: OpeningChoice) {
+    try {
+      const record = parseContract(
+        await invoke<unknown>('lcu_lock_match_rule', { choice }),
+        isLockedMatchRule,
+      )
+      if (record.gameId !== choice.gameId) throw new Error('Mismatched locked match')
+      return record
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.match_rule_failed')
+    }
+  },
+  async get(gameId: string) {
+    try {
+      const record = parseContract(
+        await invoke<unknown>('lcu_get_locked_match_rule', { gameId }),
+        nullable(isLockedMatchRule),
+      )
+      if (record && record.gameId !== gameId) throw new Error('Mismatched locked match')
+      return record
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.match_rule_failed')
     }
   },
 }

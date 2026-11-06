@@ -1,6 +1,6 @@
 {
   "name": "aram-mayhem",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -17,7 +17,9 @@
     "test": "vitest run",
     "check:baseline": "node scripts/check-baseline.mjs",
     "check": "pnpm run check:baseline && pnpm run format:check && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "assets:champions:sync": "node scripts/sync-champion-assets.mjs",
+    "assets:champions:update": "node scripts/sync-champion-assets.mjs --latest --refresh"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",

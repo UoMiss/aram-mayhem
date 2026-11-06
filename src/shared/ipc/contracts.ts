@@ -102,6 +102,10 @@ export const isChampionSelect = object<ChampionSelectSnapshot>({
 })
 export const isSession = object<GameSessionContext>({
   sessionKey: string,
+  gameId: (value): value is string | null | undefined =>
+    value === undefined || nullable(string)(value),
+  game: (value): value is LobbySnapshot | null | undefined =>
+    value === undefined || nullable(isLobby)(value),
   connectionGeneration: unsigned,
   phase,
   startedAt: unsigned,
@@ -123,7 +127,7 @@ export const isGameflow = object<GameflowSnapshot>({
   code: nullable(string),
   message: nullable(string),
 })
-export { nullable }
+export { nullable, object, array, unsigned, string, boolean }
 
 /** All native replies/events enter as unknown and are checked before reaching Pinia. */
 export function parseContract<T>(value: unknown, guard: Guard<T>): T {

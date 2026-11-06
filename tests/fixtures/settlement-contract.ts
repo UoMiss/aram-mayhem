@@ -1,0 +1,60 @@
+import type { SettlementSnapshot } from '@/types/settlement-api'
+import { TEST_HISTORY_MATCH, testHistorySnapshot } from './history-contract'
+export const TEST_SETTLEMENT_ID = TEST_HISTORY_MATCH.id
+export const TEST_SETTLEMENT_ACCOUNT = testHistorySnapshot().accountKey
+export function testSettlement(overrides: Partial<SettlementSnapshot> = {}): SettlementSnapshot {
+  return {
+    id: TEST_SETTLEMENT_ID,
+    accountKey: TEST_SETTLEMENT_ACCOUNT,
+    queueId: 2400,
+    gameMode: 'ARAM',
+    gameType: 'MATCHED_GAME',
+    createdAt: 1793760000000,
+    durationSeconds: 1204,
+    appliedRule: 'tail',
+    isCustom: false,
+    rankingStatus: 'ready',
+    luckyDigit: null,
+    lockedRule: false,
+    updatedAt: 1793760001000,
+    players: [
+      {
+        id: '3',
+        teamId: 200,
+        championId: 777,
+        level: 18,
+        nickname: '对手#CN1',
+        isSelf: false,
+        isFriend: true,
+        win: false,
+        kills: 5,
+        deaths: 8,
+        assists: 3,
+        damage: '12349',
+        taken: null,
+        healing: null,
+        rank: 1,
+        ruleValue: '9',
+      },
+      {
+        id: '1',
+        teamId: 100,
+        championId: 221,
+        level: 18,
+        nickname: '真实玩家#CN1',
+        isSelf: true,
+        isFriend: false,
+        win: true,
+        kills: 12,
+        deaths: 4,
+        assists: 18,
+        damage: '18446744073709551615',
+        taken: '18000',
+        healing: '0',
+        rank: 2,
+        ruleValue: '5',
+      },
+    ],
+    ...overrides,
+  }
+}

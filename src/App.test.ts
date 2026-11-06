@@ -4,6 +4,7 @@ import { createSSRApp } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import App from './App.vue'
 import { createAppI18n } from './i18n'
+import { APP_VERSION } from './shared/constants/app'
 import { CONNECT_DELAY_MS, useAppStore } from './stores/app'
 
 type AppStore = ReturnType<typeof useAppStore>
@@ -36,26 +37,15 @@ describe('App shell rendering', () => {
     vi.useRealTimers()
   })
 
-  it('renders the original disconnected screen first', async () => {
+  it('shows connection details immediately and keeps a browser-only demo entry', async () => {
     const { html } = await renderApp()
 
     expect(html).toContain('等待连接英雄联盟')
-    expect(html).toContain('打开并登录客户端后会自动连接。')
-    expect(html).toContain('重新连接')
-    expect(html).toContain('连接详情 · 每')
+    expect(html).toContain('连接详情')
+    expect(html).toContain('id="connection-detail-panel"')
+    expect(html).toContain('进入浏览器演示')
     expect(html).not.toContain('lcu-connector.sh')
-    expect(html).not.toContain('Mayhem Assistant v0.1.0')
-  })
-
-  it('expands the connection details panel through reactive state', async () => {
-    const { html } = await renderApp((store) => {
-      store.toggleDetails()
-    })
-
-    expect(html).toContain('aria-expanded="true"')
-    expect(html).toContain('rotate-90')
-    expect(html).toContain('lcu-connector.sh')
-    expect(html).toContain('connection-detail-panel')
+    expect(html).not.toContain(`Mayhem Assistant v${APP_VERSION}`)
   })
 
   it('renders the migrated home page, header and bottom navigation after connecting', async () => {
@@ -65,16 +55,14 @@ describe('App shell rendering', () => {
     })
 
     expect(html).not.toContain('等待连接英雄联盟')
-    expect(html).toContain('Mayhem Assistant v0.1.0')
+    expect(html).toContain(`Mayhem Assistant v${APP_VERSION}`)
     expect(html).toContain('id="page-home"')
     expect(html).toContain('峡谷小米')
     expect(html).toContain('房间中')
     expect(html).toContain('匹配模式')
-    expect(html).toContain('伤害尾数规则')
-    expect(html).toContain('对局结束自动结算')
-    expect(html).toContain('关闭窗口可收进托盘。')
-    expect(html).toContain('上一局')
-    expect(html).toContain('历史对局')
+    expect(html).toMatch(/id="home-rule-text"[^>]*>纯伤害规则</)
+    expect(html).toContain('当前对局')
+    expect(html).toContain('最近 5 局')
     expect(html).toContain('主导航')
     expect(html).toContain('active-tab')
     expect(html).not.toContain('阶段 2 · UI 基础框架')
@@ -84,11 +72,11 @@ describe('App shell rendering', () => {
     const { html, store } = await renderApp((store) => {
       store.connect()
       vi.advanceTimersByTime(CONNECT_DELAY_MS)
-      store.setCurrentRule('damage')
+      store.setCurrentRule('tail')
     })
 
-    expect(store.currentRule).toBe('damage')
-    expect(html).toMatch(/id="home-rule-text"[^>]*>纯伤害规则</)
+    expect(store.currentRule).toBe('tail')
+    expect(html).toMatch(/id="home-rule-text"[^>]*>伤害尾数规则</)
   })
 
   it('renders all seven original history cards', async () => {
@@ -187,11 +175,14 @@ describe('App shell rendering', () => {
 
     expect(html).toContain('算分规则')
     expect(html).toContain('纯伤害规则')
-    expect(html).toContain('按伤害排名结算')
+    expect(html).toContain('查看纯伤害规则说明')
+    expect(html).toContain('按精确输出伤害从高到低排名')
     expect(html).toContain('幸运数字规则')
-    expect(html).toContain('按尾数匹配结算')
+    expect(html).toContain('查看幸运数字规则说明')
+    expect(html).toContain('尾数与赛后幸运数字的距离越小，排名越高')
     expect(html).toContain('伤害尾数规则')
-    expect(html).toContain('按伤害尾数排名')
+    expect(html).toContain('查看伤害尾数规则说明')
+    expect(html).toContain('个位优先，9 最大、0 最小；同分逐位比较')
     expect(html).toContain('小工具')
     expect(html).toContain('随机分组')
     expect(html).toContain('更多工具')
@@ -215,12 +206,12 @@ describe('App shell rendering', () => {
 
     expect(html).toContain('id="page-settings"')
     expect(html).toContain('通用设置')
-    expect(html).toContain('自动启动并后台运行')
+    expect(html).toContain('开机自动启动')
     expect(html).toContain('断开连接自动重试')
     expect(html).toContain('提示音效')
     expect(html).toContain('关于助手')
     expect(html).toContain('当前版本')
-    expect(html).toContain('v0.1.0')
+    expect(html).toContain(`v${APP_VERSION}`)
     expect(html).toContain('检查更新')
     const settingsHtml = html.slice(html.indexOf('id="page-settings"')).split('</section>')[0]!
     expect(settingsHtml.match(/role="switch"/g)).toHaveLength(3)

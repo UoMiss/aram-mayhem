@@ -1,7 +1,5 @@
 import type { TeamPlayer, TeamSplit } from '@/types/tools'
 
-export const TEAM_SIZE = 4
-
 /**
  * Fisher–Yates 洗牌，返回新数组，不修改传入的原始玩家列表。
  */
@@ -22,15 +20,16 @@ export function shufflePlayers(
   return result
 }
 
-/** 前 4 名进入 A 组，后 4 名进入 B 组。 */
+/** Split every participant into balanced teams; odd totals differ by one. */
 export function splitTeams(
   players: readonly TeamPlayer[],
   random: () => number = Math.random,
 ): TeamSplit {
   const shuffled = shufflePlayers(players, random)
+  const size = Math.ceil(shuffled.length / 2)
   return {
-    groupA: shuffled.slice(0, TEAM_SIZE),
-    groupB: shuffled.slice(TEAM_SIZE, TEAM_SIZE * 2),
+    groupA: shuffled.slice(0, size),
+    groupB: shuffled.slice(size),
   }
 }
 

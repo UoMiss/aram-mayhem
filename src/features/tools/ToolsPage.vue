@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { defineAsyncComponent, ref, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { useI18n } from 'vue-i18n'
 import RuleOption from '@/features/tools/components/RuleOption.vue'
-import TeamDrawer from '@/features/tools/components/TeamDrawer.vue'
 import { toggleScoreRule } from '@/features/tools/rules'
 import { SCORE_RULE_OPTIONS } from '@/mocks/tools'
 import { useRulesStore } from '@/stores/rules'
 import type { ScoreRule } from '@/types/home'
 
+const TeamDrawer = defineAsyncComponent(() => import('@/features/tools/components/TeamDrawer.vue'))
 const rules = useRulesStore()
 const { t } = useI18n({ useScope: 'global' })
 const isTeamDrawerOpen = ref(false)

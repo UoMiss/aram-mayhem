@@ -5,9 +5,12 @@ use crate::lcu::discovery::{LcuClient, discover};
 use crate::lcu::error::LcuError;
 use crate::lcu::models::{LcuSourceKind, LcuStatus, LcuStatusDto, StatusUpdate};
 use async_trait::async_trait;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{
+    Arc, Mutex, MutexGuard,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::Duration;
-use tokio::sync::watch;
+use tokio::sync::{Notify, watch};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
@@ -47,6 +50,8 @@ pub struct LcuManager<S: LcuSource> {
     source: Arc<S>,
     machine: Arc<Mutex<ConnectionMachine>>,
     monitor: Arc<Mutex<Option<MonitorHandle>>>,
+    wake: Arc<Notify>,
+    auto_retry: Arc<AtomicBool>,
     config: MonitorConfig,
 }
 
@@ -65,7 +70,15 @@ impl<S: LcuSource> LcuManager<S> {
                 false,
             ))),
             monitor: Arc::new(Mutex::new(None)),
+            wake: Arc::new(Notify::new()),
+            auto_retry: Arc::new(AtomicBool::new(true)),
             config,
+        }
+    }
+
+    pub fn set_auto_retry(&self, enabled: bool) {
+        if !self.auto_retry.swap(enabled, Ordering::Relaxed) && enabled {
+            self.wake.notify_one();
         }
     }
 
@@ -78,10 +91,11 @@ impl<S: LcuSource> LcuManager<S> {
         lock(&self.monitor).is_some()
     }
 
-    /// Starts the single background monitor. Calling it again is a no-op.
+    /// Starts one background monitor, or wakes the existing task for a manual retry.
     pub fn start_monitoring(&self, callback: StatusCallback) -> LcuStatusDto {
         let mut monitor = lock(&self.monitor);
         if monitor.is_some() {
+            self.wake.notify_one();
             return self.status();
         }
 
@@ -103,6 +117,8 @@ impl<S: LcuSource> LcuManager<S> {
         let machine = Arc::clone(&self.machine);
         let callback_for_task = Arc::clone(&callback);
         let config = self.config;
+        let wake = Arc::clone(&self.wake);
+        let auto_retry = Arc::clone(&self.auto_retry);
         let join = tokio::spawn(async move {
             run_monitor(
                 source,
@@ -111,6 +127,8 @@ impl<S: LcuSource> LcuManager<S> {
                 cancel_rx,
                 config,
                 callback_for_task,
+                wake,
+                auto_retry,
             )
             .await;
         });
@@ -221,6 +239,8 @@ async fn run_monitor<S: LcuSource>(
     mut cancel: watch::Receiver<bool>,
     config: MonitorConfig,
     callback: StatusCallback,
+    wake: Arc<Notify>,
+    auto_retry: Arc<AtomicBool>,
 ) {
     let manager = LcuManagerRef {
         machine: Arc::clone(&machine),
@@ -319,11 +339,18 @@ async fn run_monitor<S: LcuSource>(
         } else {
             retry
         };
-        tokio::select! {
-            _ = sleep(delay) => {}
+        let refreshed = tokio::select! {
+            _ = sleep(delay), if connected || auto_retry.load(Ordering::Relaxed) => false,
+            _ = wake.notified() => true,
             _ = cancel.changed() => break,
+        };
+        if !refreshed && !connected && !auto_retry.load(Ordering::Relaxed) {
+            tokio::select! {
+                _ = wake.notified() => {}
+                _ = cancel.changed() => break,
+            }
         }
-        retry = if connected {
+        retry = if connected || refreshed {
             config.retry_initial
         } else {
             (retry * 2).min(config.retry_max)
@@ -512,6 +539,64 @@ mod tests {
         assert_eq!(first.status, LcuStatus::Discovering);
         assert_eq!(second.status, first.status);
         assert!(manager.is_monitoring());
+        manager.stop_monitoring().await;
+    }
+
+    #[tokio::test]
+    async fn manual_retry_wakes_monitor_without_waiting_for_backoff() {
+        let source = Arc::new(FakeSource::new(vec![], vec![], None));
+        let manager = LcuManager::new(
+            Arc::clone(&source),
+            LcuSourceKind::Real,
+            LcuStatus::NotRunning,
+            MonitorConfig {
+                poll_interval: Duration::from_secs(60),
+                retry_initial: Duration::from_secs(60),
+                retry_max: Duration::from_secs(60),
+            },
+        );
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let cb = callback(tx);
+        manager.start_monitoring(Arc::clone(&cb));
+        wait_for(&mut rx, |status| status.status == LcuStatus::NotRunning).await;
+        let calls = source.discovery_calls.load(Ordering::SeqCst);
+        manager.start_monitoring(cb);
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while source.discovery_calls.load(Ordering::SeqCst) == calls {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("manual retry did not wake the existing monitor");
+        assert!(manager.is_monitoring());
+        manager.stop_monitoring().await;
+    }
+
+    #[tokio::test]
+    async fn disabling_auto_retry_pauses_discovery_until_woken() {
+        let source = Arc::new(FakeSource::new(vec![], vec![], None));
+        let manager = LcuManager::new(
+            Arc::clone(&source),
+            LcuSourceKind::Real,
+            LcuStatus::NotRunning,
+            config(),
+        );
+        manager.set_auto_retry(false);
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        manager.start_monitoring(callback(tx));
+        wait_for(&mut rx, |status| status.status == LcuStatus::NotRunning).await;
+        let calls = source.discovery_calls.load(Ordering::SeqCst);
+        sleep(Duration::from_millis(35)).await;
+        assert_eq!(source.discovery_calls.load(Ordering::SeqCst), calls);
+        manager.set_auto_retry(true);
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while source.discovery_calls.load(Ordering::SeqCst) == calls {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("enabling retry wakes discovery");
+        manager.stop_monitoring().await;
     }
 
     #[tokio::test]

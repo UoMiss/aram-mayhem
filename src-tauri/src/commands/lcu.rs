@@ -22,16 +22,22 @@ pub async fn lcu_start_monitoring(
     app: AppHandle,
     state: State<'_, SystemLcuManager>,
 ) -> Result<LcuStatusDto, LcuError> {
-    let app_handle = app.clone();
-    let callback: StatusCallback = Arc::new(move |status| {
-        let _ = app_handle.emit(LCU_STATUS_EVENT, status);
-    });
-    let status = state.start_monitoring(callback);
+    let status = start_monitoring(&app, &state);
     println!(
         "[lcu_start_monitoring] status={:?} source={:?} monitoring={}",
         status.status, status.source, status.monitoring
     );
     Ok(status)
+}
+
+pub(crate) fn start_monitoring(app: &AppHandle, state: &SystemLcuManager) -> LcuStatusDto {
+    let app_handle = app.clone();
+    let callback: StatusCallback = Arc::new(move |status| {
+        let _ = app_handle.emit(LCU_STATUS_EVENT, status);
+        #[cfg(windows)]
+        crate::tray::refresh_status(&app_handle);
+    });
+    state.start_monitoring(callback)
 }
 
 #[tauri::command]

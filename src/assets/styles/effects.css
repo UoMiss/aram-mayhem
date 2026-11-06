@@ -1,4 +1,4 @@
-/* 原版 CSS 动效与弹层过渡，全部保留自 references/deepseek.original.html。 */
+/* CSS 动效与弹层过渡，源自 references/deepseek.original.html。 */
 
 @keyframes pulse-glow {
   0%,
@@ -13,28 +13,6 @@
 }
 .animate-glow {
   animation: pulse-glow 2.5s infinite ease-in-out;
-}
-
-@keyframes dot-bounce {
-  0%,
-  80%,
-  100% {
-    transform: scale(0);
-    opacity: 0.3;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-.dot1 {
-  animation: dot-bounce 1.4s infinite ease-in-out 0s;
-}
-.dot2 {
-  animation: dot-bounce 1.4s infinite ease-in-out 0.2s;
-}
-.dot3 {
-  animation: dot-bounce 1.4s infinite ease-in-out 0.4s;
 }
 
 @keyframes blink {

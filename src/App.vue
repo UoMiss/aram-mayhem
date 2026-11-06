@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
+import { useMatchLifecycle } from '@/composables/useMatchLifecycle'
 import AppShell from '@/components/layout/AppShell.vue'
 import AppToast from '@/components/feedback/AppToast.vue'
 import ConnectionScreen from '@/features/connection/ConnectionScreen.vue'
@@ -20,6 +22,8 @@ import { useConnectionStore } from '@/stores/connection'
 
 const connection = useConnectionStore()
 const desktop = useDesktopStore()
+const lifecycle = useMatchLifecycle()
+const settings = useSettingsStore()
 
 function diagnosticCode(error: unknown, fallback: string): string {
   return error instanceof LcuServiceError ? error.code : fallback
@@ -37,7 +41,9 @@ async function subscribeConnection() {
     if (!lcuUnlisten) {
       const unlisten = await subscribeLcuStatus(
         (status) => {
-          if (!disposed) connection.setLcuStatus(status)
+          if (disposed) return
+          connection.setLcuStatus(status)
+          connection.clearLcuError()
         },
         (error) => {
           if (!disposed) connection.setLcuError(error.code)
@@ -69,7 +75,9 @@ async function subscribeFlow() {
   try {
     if (!gameflowUnlisten) {
       const unlisten = await subscribeGameflow((event) => {
-        if (!disposed && event.type === 'updated') connection.setGameflowSnapshot(event.snapshot)
+        if (disposed) return
+        if (event.type === 'updated') connection.setGameflowSnapshot(event.snapshot)
+        if (event.type === 'session-ended') void lifecycle.finish(event.session)
       })
       if (disposed) {
         unlisten()
@@ -100,6 +108,11 @@ onMounted(() => {
 
     if (disposed) return
     try {
+      if (connection.isDesktopRuntime && !settings.settings.autoRetry) {
+        const { tauriSettingsAdapter } = await import('@/adapters/tauri.adapter')
+        await tauriSettingsAdapter.setAutoRetry(false).catch(() => undefined)
+        if (disposed) return
+      }
       const status = await startLcuMonitoring()
       if (disposed) {
         void stopLcuMonitoring().catch(() => undefined)

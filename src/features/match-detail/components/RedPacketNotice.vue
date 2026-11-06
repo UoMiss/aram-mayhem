@@ -3,9 +3,19 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RedPacketEntry } from '@/types/match-detail'
 
-const props = defineProps<{ entries: readonly RedPacketEntry[] }>()
+const props = defineProps<{
+  entries: readonly RedPacketEntry[]
+  quota?: number
+  preview?: boolean
+}>()
 const { t } = useI18n({ useScope: 'global' })
-const note = computed(() => t('matchDetail.redPacketNote', { count: props.entries.length }))
+const note = computed(() =>
+  props.quota !== undefined && props.entries.length > props.quota
+    ? t('matchDetail.redPacketTie', { quota: props.quota, count: props.entries.length })
+    : t(props.preview ? 'matchDetail.redPacketPreviewNote' : 'matchDetail.redPacketNote', {
+        count: props.entries.length,
+      }),
+)
 </script>
 
 <template>
@@ -19,14 +29,14 @@ const note = computed(() => t('matchDetail.redPacketNote', { count: props.entrie
     <div class="mb-3 flex items-center gap-1.5">
       <i class="fa-solid fa-hand-holding-dollar text-sm text-danger-bright"></i>
       <span class="text-sm font-bold tracking-wider text-danger">{{
-        t('matchDetail.redPacketTitle')
+        t(preview ? 'matchDetail.redPacketPreviewTitle' : 'matchDetail.redPacketTitle')
       }}</span>
     </div>
 
     <div class="mb-3 flex w-full flex-wrap justify-center gap-2">
       <div
-        v-for="entry in entries"
-        :key="`${entry.name}-${entry.rank}`"
+        v-for="(entry, index) in entries"
+        :key="index"
         class="flex items-center gap-1 rounded-lg border border-danger-bright/40 bg-danger-base/80 px-2.5 py-1.5 text-xs font-bold text-danger-soft shadow-sm"
       >
         <span>{{ entry.name }}</span>

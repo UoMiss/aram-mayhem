@@ -13,20 +13,19 @@ describe('app store', () => {
     vi.useRealTimers()
   })
 
-  it('starts disconnected on the home tab with details collapsed', () => {
+  it('starts disconnected on the home tab', () => {
     const app = useAppStore()
 
     expect(app.connectionPhase).toBe('disconnected')
     expect(app.isConnected).toBe(false)
     expect(app.isConnecting).toBe(false)
     expect(app.activeTab).toBe('home')
-    expect(app.showDetails).toBe(false)
   })
 
   it('exposes only home business values before connecting', () => {
     const app = useAppStore()
 
-    expect(app.currentRule).toBe('tail')
+    expect(app.currentRule).toBe('damage')
     expect(app.homeView).toEqual({
       isConnected: false,
       summonerName: '峡谷小米',
@@ -168,19 +167,17 @@ describe('app store', () => {
     expect(app.isConnected).toBe(false)
   })
 
-  it('resets navigation and details on disconnect', () => {
+  it('resets navigation on disconnect', () => {
     const app = useAppStore()
 
     app.connect()
     vi.advanceTimersByTime(CONNECT_DELAY_MS)
     app.setActiveTab('settings')
-    app.toggleDetails()
 
     app.disconnect()
 
     expect(app.connectionPhase).toBe('disconnected')
     expect(app.activeTab).toBe('home')
-    expect(app.showDetails).toBe(false)
   })
 
   it('switches tabs', () => {
@@ -191,16 +188,6 @@ describe('app store', () => {
 
     app.setActiveTab('match-detail')
     expect(app.activeTab).toBe('match-detail')
-  })
-
-  it('toggles connection details', () => {
-    const app = useAppStore()
-
-    app.toggleDetails()
-    expect(app.showDetails).toBe(true)
-
-    app.toggleDetails()
-    expect(app.showDetails).toBe(false)
   })
 
   it('shows a toast for the original 2500ms duration', () => {

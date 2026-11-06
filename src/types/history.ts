@@ -1,8 +1,8 @@
-/** 原始 HTML 中 data-mode 的两种战绩类型。 */
-export type MatchMode = 'hex' | 'custom'
+/** 保留原始演示类型，并区分普通 ARAM 与其他真实队列。 */
+export type MatchMode = 'hex' | 'custom' | 'aram' | 'other'
 
 /** 筛选值：全部或具体模式。 */
-export type HistoryFilter = 'all' | MatchMode
+export type HistoryFilter = 'all' | 'hex' | 'custom'
 
 /** 原始 HTML 中的胜负状态。 */
 export type MatchResult = 'victory' | 'defeat'
@@ -13,7 +13,7 @@ export interface MatchKda {
   assists: number
 }
 
-/** 单条首页战绩 Mock；字段与原始 7 条卡片一一对应。 */
+/** 战绩卡片视图；真实记录保留时间戳，演示记录保留原始时间文案。 */
 export interface MatchHistoryItem {
   id: string
   mode: MatchMode
@@ -23,4 +23,5 @@ export interface MatchHistoryItem {
   kda: MatchKda
   isFriend: boolean
   timeLabel: string
+  createdAt?: number
 }

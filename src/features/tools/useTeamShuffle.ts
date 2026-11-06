@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, toValue, type MaybeRefOrGetter, type Ref } from 'vue'
 import type { TeamPlayer } from '@/types/tools'
 import { formatBeijingTime, splitTeams } from './teamRandomizer'
 
@@ -23,6 +23,7 @@ export interface TeamShuffleController {
   randomTime: Ref<string>
   start: () => boolean
   dispose: () => void
+  reset: () => void
 }
 
 /**
@@ -30,7 +31,7 @@ export interface TeamShuffleController {
  * 组件负责在卸载时调用 dispose()；关闭抽屉不会销毁状态。
  */
 export function useTeamShuffle(
-  players: readonly TeamPlayer[],
+  players: MaybeRefOrGetter<readonly TeamPlayer[]>,
   options: UseTeamShuffleOptions = {},
 ): TeamShuffleController {
   const random = options.random ?? Math.random
@@ -45,6 +46,7 @@ export function useTeamShuffle(
   const groupB = ref<TeamPlayer[]>([])
   const countdown = ref(3)
   const randomTime = ref('')
+  let drawPlayers: readonly TeamPlayer[] = []
   let countdownTimer: ReturnType<typeof setInterval> | null = null
   let shuffleTimer: ReturnType<typeof setInterval> | null = null
   let finishTimer: ReturnType<typeof setTimeout> | null = null
@@ -65,7 +67,7 @@ export function useTeamShuffle(
   }
 
   function applySplit() {
-    const split = splitTeams(players, random)
+    const split = splitTeams(drawPlayers, random)
     groupA.value = split.groupA
     groupB.value = split.groupB
   }
@@ -82,9 +84,18 @@ export function useTeamShuffle(
   function start(): boolean {
     if (isShuffling.value) return false
 
+    drawPlayers = toValue(players).map((player) => ({ ...player }))
+    if (drawPlayers.length < 2) return false
     clearTimers()
-    isShuffling.value = true
     hasResult.value = true
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      finish()
+      return true
+    }
+    isShuffling.value = true
     countdown.value = 3
     randomTime.value = ''
     applySplit()
@@ -104,7 +115,18 @@ export function useTeamShuffle(
     isShuffling.value = false
   }
 
+  function reset() {
+    dispose()
+    hasResult.value = false
+    groupA.value = []
+    groupB.value = []
+    countdown.value = 3
+    randomTime.value = ''
+    drawPlayers = []
+  }
+
   return {
+    reset,
     isShuffling,
     hasResult,
     groupA,

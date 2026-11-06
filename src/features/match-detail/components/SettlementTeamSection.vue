@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { TEAM_TITLE_KEYS } from '@/i18n/labels'
+import { TEAM_BADGE_KEYS, TEAM_TITLE_KEYS } from '@/i18n/labels'
 import SettlementPlayerRow from '@/features/match-detail/components/SettlementPlayerRow.vue'
 import type { SettlementPlayer, TeamSide } from '@/types/match-detail'
 
 const props = defineProps<{
+  win?: boolean
   side: TeamSide
   players: readonly SettlementPlayer[]
 }>()
@@ -48,7 +49,11 @@ const totalKda = computed(() => {
       class="flex items-center justify-between border-b border-on-solid/5 px-4 py-2"
       :class="teamTone.header"
     >
-      <span class="text-xs font-bold" :class="teamTone.title">{{ t(TEAM_TITLE_KEYS[side]) }}</span>
+      <span class="text-xs font-bold" :class="teamTone.title">{{
+        win === undefined
+          ? t(TEAM_TITLE_KEYS[side])
+          : `${t(TEAM_BADGE_KEYS[side])} · ${t(win ? 'history.results.victory' : 'history.results.defeat')}`
+      }}</span>
       <span class="text-xs font-bold tracking-wider text-text-muted">{{ totalKda }}</span>
     </div>
 

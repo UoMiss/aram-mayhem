@@ -28,7 +28,7 @@ describe('match detail fixture', () => {
 
   it('derives the original global rank order without sorting by score', () => {
     const globalOrder = [...MATCH_DETAIL_FIXTURE.players]
-      .sort((left, right) => left.rank - right.rank)
+      .sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))
       .map((player) => ({ rank: player.rank, champion: player.champion, score: player.score }))
 
     expect(globalOrder).toEqual([

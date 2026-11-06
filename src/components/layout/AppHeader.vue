@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppLogo from '@/components/common/AppLogo.vue'
 import { useDesktopStore } from '@/stores/desktop'
 import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connection'
@@ -13,11 +14,7 @@ const { t } = useI18n({ useScope: 'global' })
     class="glass-card sticky top-0 z-header flex items-center justify-between border-b border-on-solid/5 bg-surface-base/80 px-4 py-3"
   >
     <div class="flex items-center gap-2.5">
-      <div
-        class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-warning-bright to-reward shadow-lg shadow-warning-bright/20"
-      >
-        <i class="fa-solid me-0.5 fa-wallet text-sm text-surface-base"></i>
-      </div>
+      <AppLogo class="h-8 w-8 shrink-0" />
       <div>
         <h1 class="text-base font-bold leading-tight tracking-wide text-on-solid">ARAM: Mayhem</h1>
         <p class="text-[10px] text-text-muted">Mayhem Assistant v{{ desktop.appVersion }}</p>

@@ -1,3 +1,8 @@
+import {
+  testSettlement,
+  TEST_SETTLEMENT_ACCOUNT,
+  TEST_SETTLEMENT_ID,
+} from '../../tests/fixtures/settlement-contract'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DesktopServiceError, LcuServiceError } from '@/services/desktop-error'
 import type { AppHealth } from '@/types/desktop'
@@ -16,7 +21,17 @@ const listenMock = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }))
 
-import { tauriAdapter, tauriGameflowAdapter, tauriLcuAdapter } from './tauri.adapter'
+import {
+  tauriAdapter,
+  tauriGameflowAdapter,
+  tauriLcuAdapter,
+  tauriHistoryAdapter,
+  tauriHomeAdapter,
+  tauriParticipantsAdapter,
+  tauriSettingsAdapter,
+  tauriSettlementAdapter,
+} from './tauri.adapter'
+import { testHistorySnapshot } from '../../tests/fixtures/history-contract'
 
 const health: AppHealth = {
   status: 'ok',
@@ -216,5 +231,176 @@ describe('IPC trust boundaries and subscription cleanup', () => {
       code: 'lcu.ipc_failed',
     })
     expect(stop).toHaveBeenCalledOnce()
+  })
+})
+
+describe('history IPC contract', () => {
+  beforeEach(() => {
+    invokeMock.mockReset()
+  })
+  it('validates success and rejects malformed player statistics', async () => {
+    const snapshot = testHistorySnapshot()
+    invokeMock.mockResolvedValue(snapshot)
+    await expect(tauriHistoryAdapter.getMatchHistory()).resolves.toEqual(snapshot)
+    expect(invokeMock).toHaveBeenCalledWith('lcu_get_match_history')
+    invokeMock.mockResolvedValue({
+      ...snapshot,
+      matches: [{ ...snapshot.matches[0], kills: '12' }],
+    })
+    await expect(tauriHistoryAdapter.getMatchHistory()).rejects.toMatchObject({
+      code: 'lcu.invalid_response',
+    })
+    invokeMock.mockRejectedValue({ code: 'not_logged_in', message: 'private host message' })
+    await expect(tauriHistoryAdapter.getMatchHistory()).rejects.toMatchObject({
+      code: 'lcu.not_logged_in',
+      message: '请先登录英雄联盟客户端后重试',
+    })
+  })
+})
+
+describe('home profile IPC contract', () => {
+  beforeEach(() => {
+    invokeMock.mockReset()
+  })
+  it('validates successful profiles and rejects malformed native data', async () => {
+    const profile = {
+      accountKey: 'account-1',
+      displayName: '真实玩家#CN1',
+      summonerLevel: 321,
+      updatedAt: 100,
+    }
+    invokeMock.mockResolvedValueOnce(profile)
+    await expect(tauriHomeAdapter.getHomeSnapshot()).resolves.toEqual(profile)
+    expect(invokeMock).toHaveBeenCalledWith('lcu_get_home_snapshot')
+    for (const malformed of [
+      { ...profile, accountKey: '' },
+      { ...profile, summonerLevel: -1 },
+      { ...profile, displayName: [] },
+    ]) {
+      invokeMock.mockResolvedValueOnce(malformed)
+      await expect(tauriHomeAdapter.getHomeSnapshot()).rejects.toMatchObject({
+        code: 'lcu.invalid_response',
+      })
+    }
+  })
+  it('normalizes business and unknown host errors', async () => {
+    invokeMock.mockRejectedValueOnce({ code: 'not_logged_in', message: 'secret' })
+    await expect(tauriHomeAdapter.getHomeSnapshot()).rejects.toMatchObject({
+      code: 'lcu.not_logged_in',
+    })
+    invokeMock.mockRejectedValueOnce(new Error('secret'))
+    await expect(tauriHomeAdapter.getHomeSnapshot()).rejects.toMatchObject({
+      code: 'lcu.home_failed',
+      message: 'LCU IPC failed',
+    })
+  })
+})
+
+describe('participant IPC contract', () => {
+  beforeEach(() => {
+    invokeMock.mockReset()
+  })
+  it('validates unique roster identities, statuses and names', async () => {
+    const snapshot = {
+      accountKey: 'account-1',
+      lobbyKey: 'room-1',
+      status: 'custom',
+      updatedAt: 1,
+      players: [{ id: 'one', name: 'Player' }],
+    }
+    invokeMock.mockResolvedValueOnce(snapshot)
+    await expect(tauriParticipantsAdapter.getCustomParticipants()).resolves.toEqual(snapshot)
+    expect(invokeMock).toHaveBeenCalledWith('lcu_get_custom_participants')
+    for (const invalid of [
+      { ...snapshot, players: [...snapshot.players, ...snapshot.players] },
+      { ...snapshot, status: 'not_custom' },
+      { ...snapshot, players: [{ id: '', name: 'Bad' }] },
+    ]) {
+      invokeMock.mockResolvedValueOnce(invalid)
+      await expect(tauriParticipantsAdapter.getCustomParticipants()).rejects.toMatchObject({
+        code: 'lcu.invalid_response',
+      })
+    }
+  })
+  it('normalizes business and unknown errors without leaking host messages', async () => {
+    invokeMock.mockRejectedValueOnce({ code: 'account_changed', message: 'secret' })
+    await expect(tauriParticipantsAdapter.getCustomParticipants()).rejects.toMatchObject({
+      code: 'lcu.account_changed',
+    })
+    invokeMock.mockRejectedValueOnce(new Error('secret'))
+    await expect(tauriParticipantsAdapter.getCustomParticipants()).rejects.toMatchObject({
+      code: 'lcu.participants_failed',
+      message: 'LCU IPC failed',
+    })
+  })
+})
+
+describe('settlement IPC contract', () => {
+  beforeEach(() => {
+    invokeMock.mockReset()
+  })
+  const request = {
+    gameId: TEST_SETTLEMENT_ID,
+    accountKey: TEST_SETTLEMENT_ACCOUNT,
+    rule: 'tail' as const,
+  }
+  it('preserves exact damage strings and rejects incomplete, lossy or inconsistent responses', async () => {
+    const snapshot = testSettlement()
+    invokeMock.mockResolvedValueOnce(snapshot)
+    await expect(tauriSettlementAdapter.getSettlement(request)).resolves.toEqual(snapshot)
+    expect(invokeMock).toHaveBeenCalledWith('lcu_get_settlement', request)
+    for (const malformed of [
+      { ...snapshot, players: [snapshot.players[0]] },
+      {
+        ...snapshot,
+        players: snapshot.players.map((player) => ({ ...player, damage: Number(player.damage) })),
+      },
+      { ...snapshot, appliedRule: 'lucky', rankingStatus: 'missing_lucky' },
+      { ...snapshot, id: '18446744073709551616' },
+    ]) {
+      invokeMock.mockResolvedValueOnce(malformed)
+      await expect(tauriSettlementAdapter.getSettlement(request)).rejects.toMatchObject({
+        code: 'lcu.invalid_response',
+      })
+    }
+  })
+  it('normalizes business and unknown host failures', async () => {
+    invokeMock.mockRejectedValueOnce({ code: 'account_changed', message: 'secret' })
+    await expect(tauriSettlementAdapter.getSettlement(request)).rejects.toMatchObject({
+      code: 'lcu.account_changed',
+    })
+    invokeMock.mockRejectedValueOnce(new Error('secret'))
+    await expect(tauriSettlementAdapter.getSettlement(request)).rejects.toMatchObject({
+      code: 'lcu.settlement_failed',
+      message: 'LCU IPC failed',
+    })
+  })
+})
+
+describe('native settings', () => {
+  it('validates startup and release results', async () => {
+    invokeMock.mockResolvedValueOnce(true)
+    await expect(tauriSettingsAdapter.autoStart(true)).resolves.toBe(true)
+    expect(invokeMock).toHaveBeenLastCalledWith('app_auto_start', { enabled: true })
+    invokeMock.mockResolvedValueOnce({ configured: false, latest: null, available: false })
+    await expect(tauriSettingsAdapter.checkUpdate()).resolves.toEqual({
+      configured: false,
+      latest: null,
+      available: false,
+    })
+    invokeMock.mockResolvedValueOnce({ configured: true, latest: null, available: true })
+    await expect(tauriSettingsAdapter.checkUpdate()).rejects.toMatchObject({
+      code: 'lcu.invalid_response',
+    })
+  })
+
+  it('normalizes native permission errors and unknown bridge failures', async () => {
+    invokeMock.mockRejectedValueOnce({ code: 'internal', message: 'private host detail' })
+    await expect(tauriSettingsAdapter.autoStart()).rejects.toMatchObject({ code: 'lcu.internal' })
+    invokeMock.mockRejectedValueOnce(new Error('private bridge detail'))
+    await expect(tauriSettingsAdapter.setAutoRetry(false)).rejects.toMatchObject({
+      code: 'lcu.auto_retry_failed',
+      message: 'LCU IPC failed',
+    })
   })
 })

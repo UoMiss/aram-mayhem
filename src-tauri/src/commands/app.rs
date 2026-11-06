@@ -58,6 +58,20 @@ pub fn app_health_check() -> Result<AppHealth, AppError> {
     Ok(health)
 }
 
+#[tauri::command]
+pub fn app_exit(window: tauri::WebviewWindow) -> Result<(), AppError> {
+    use tauri::Manager;
+
+    if window.label() != "main" {
+        return Err(AppError::new(
+            "desktop.exit_failed",
+            "Exit is restricted to main",
+        ));
+    }
+    window.app_handle().exit(0);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { defineAsyncComponent, ref, watch } from 'vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import BottomNavigation from '@/components/layout/BottomNavigation.vue'
 import HistoryPage from '@/features/history/HistoryPage.vue'
 import HomePage from '@/features/home/HomePage.vue'
-import MatchDetailPage from '@/features/match-detail/MatchDetailPage.vue'
 import SettingsPage from '@/features/settings/SettingsPage.vue'
 import ToolsPage from '@/features/tools/ToolsPage.vue'
 import { useUiStore } from '@/stores/ui'
 
+const MatchDetailPage = defineAsyncComponent(
+  () => import('@/features/match-detail/MatchDetailPage.vue'),
+)
 const ui = useUiStore()
 const mainRef = ref<HTMLElement | null>(null)
 

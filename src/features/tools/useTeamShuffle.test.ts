@@ -89,4 +89,18 @@ describe('useTeamShuffle', () => {
     expect(names(shuffle.groupB.value)).toEqual(groupBBefore)
     expect(shuffle.randomTime.value).toBe('')
   })
+  it('freezes the draw participants and reset cancels animation and clears results', () => {
+    let players = [...TEAM_DRAW_PLAYERS]
+    const shuffle = useTeamShuffle(() => players)
+    shuffle.start()
+    players = []
+    vi.advanceTimersByTime(3000)
+    expect(shuffle.groupA.value.length + shuffle.groupB.value.length).toBe(8)
+    shuffle.reset()
+    expect(shuffle.hasResult.value).toBe(false)
+    expect(shuffle.groupA.value).toEqual([])
+    expect(shuffle.randomTime.value).toBe('')
+    expect(vi.getTimerCount()).toBe(0)
+    expect(shuffle.start()).toBe(false)
+  })
 })

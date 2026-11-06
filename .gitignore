@@ -34,3 +34,6 @@ src-tauri/gen/
 *.pfx
 src-tauri/.env
 src-tauri/.env.*
+
+# 本地资料归档
+/.local-archive/

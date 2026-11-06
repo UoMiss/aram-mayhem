@@ -37,7 +37,7 @@ describe('zh-CN i18n resource', () => {
   it('preserves the original Chinese copy and interpolation spacing', () => {
     const t = i18n.global.t
 
-    expect(t('connection.retryHint', { seconds: 5 })).toBe('连接详情 · 每 5 秒自动重试')
+    expect(t('connection.details')).toBe('连接详情')
     expect(t('history.recentHint', { count: 20 })).toBe('仅显示最近 20 局 · 点击查看结算')
     expect(t('matchDetail.redPacketNote', { count: 5 })).toBe('本局最后 5 名，请准备好你们的红包！')
     expect(t('team.participantCount', { count: 8 })).toBe('8 人')

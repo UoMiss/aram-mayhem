@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatMatchTime } from '@/shared/lib/history-presentation'
 import { MATCH_MODE_KEYS, MATCH_RESULT_KEYS } from '@/i18n/labels'
 import type { MatchHistoryItem } from '@/types/history'
 
@@ -39,10 +40,19 @@ function select() {
   >
     <div class="flex items-center gap-3">
       <img
+        v-if="match.championImage"
         :src="match.championImage"
         :alt="match.champion"
         class="h-11 w-11 rounded-xl object-cover ring-1 ring-on-solid/10"
       />
+      <span
+        v-else
+        role="img"
+        :aria-label="match.champion"
+        :title="match.champion"
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-text-muted"
+        ><i class="fa-solid fa-user"></i
+      ></span>
       <div class="space-y-0.5">
         <div class="text-sm font-bold" :class="outcomeClasses.text">{{ resultLabel }}</div>
         <div class="text-xs text-text-muted">{{ modeLabel }}</div>
@@ -59,7 +69,7 @@ function select() {
           >
             {{ t('common.friend') }}
           </span>
-          <span>{{ match.timeLabel }}</span>
+          <span>{{ match.createdAt ? formatMatchTime(match.createdAt) : match.timeLabel }}</span>
         </div>
       </div>
       <i class="fa-solid fa-chevron-right text-xs text-text-subtle"></i>

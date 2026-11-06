@@ -8,12 +8,12 @@ describe('tools score rules', () => {
     setActivePinia(createPinia())
   })
 
-  it('defaults to tail and supports mutual exclusion', () => {
+  it('defaults to damage and supports mutual exclusion', () => {
     const app = useAppStore()
-    expect(app.currentRule).toBe('tail')
-
-    app.setCurrentRule(toggleScoreRule(app.currentRule, 'damage'))
     expect(app.currentRule).toBe('damage')
+
+    app.setCurrentRule(toggleScoreRule(app.currentRule, 'tail'))
+    expect(app.currentRule).toBe('tail')
 
     app.setCurrentRule(toggleScoreRule(app.currentRule, 'lucky'))
     expect(app.currentRule).toBe('lucky')
@@ -21,7 +21,7 @@ describe('tools score rules', () => {
 
   it('allows deselecting the active rule', () => {
     const app = useAppStore()
-    app.setCurrentRule(toggleScoreRule(app.currentRule, 'tail'))
+    app.setCurrentRule(toggleScoreRule(app.currentRule, 'damage'))
 
     expect(app.currentRule).toBeNull()
   })

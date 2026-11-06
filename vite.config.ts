@@ -11,4 +11,14 @@ export default defineConfig({
     },
   },
   server: { host: '127.0.0.1', port: 1420, strictPort: true },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Keep the complete, rarely changing portrait catalog separately cacheable.
+          if (id.includes('/src/shared/lib/champions.ts')) return 'champion-assets'
+        },
+      },
+    },
+  },
 })

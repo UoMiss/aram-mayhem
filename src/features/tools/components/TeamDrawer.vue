@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useModalFocus } from '@/shared/composables/use-modal-focus'
 import { useI18n } from 'vue-i18n'
-import { TEAM_DRAW_PLAYERS } from '@/mocks/tools'
+import { useTeamParticipants } from '@/features/tools/useTeamParticipants'
+import { useConnectionStore } from '@/stores/connection'
 import { captureAndDeliverScreenshot } from '@/services/image.service'
 import { useFeedbackStore } from '@/stores/feedback'
 import { useTeamShuffle } from '@/features/tools/useTeamShuffle'
@@ -12,15 +13,84 @@ const emit = defineEmits<{ close: [] }>()
 
 const feedback = useFeedbackStore()
 const { t } = useI18n({ useScope: 'global' })
-const { isShuffling, hasResult, groupA, groupB, countdown, randomTime, start, dispose } =
-  useTeamShuffle(TEAM_DRAW_PLAYERS)
+const connection = useConnectionStore()
+const roster = useTeamParticipants(() => props.open)
+const players = roster.players
+const rosterChanged = ref(false)
+const isStarting = ref(false)
+let copyGeneration = 0
+let startGeneration = 0
+let disposed = false
+const { isShuffling, hasResult, groupA, groupB, countdown, randomTime, start, dispose, reset } =
+  useTeamShuffle(() => players.value)
 
 const teamCaptureRef = ref<HTMLElement | null>(null)
 const isCopying = ref(false)
 const drawerRef = ref<HTMLElement | null>(null)
 useModalFocus(() => props.open, drawerRef, requestClose)
 
-const canCopy = computed(() => !isShuffling.value && !isCopying.value)
+const canStart = computed(
+  () =>
+    props.open &&
+    !isShuffling.value &&
+    !isCopying.value &&
+    !isStarting.value &&
+    !roster.isLoading.value &&
+    players.value.length >= 2 &&
+    (!roster.isDesktop.value ||
+      (connection.isRealLcuConnected &&
+        (roster.status.value === 'custom' ||
+          roster.status.value === 'party' ||
+          roster.status.value === 'champ_select') &&
+        !roster.errorCode.value)),
+)
+const canCopy = computed(
+  () =>
+    !isShuffling.value &&
+    !isCopying.value &&
+    !isStarting.value &&
+    (!roster.isDesktop.value ||
+      (props.open &&
+        hasResult.value &&
+        connection.isRealLcuConnected &&
+        !roster.isLoading.value &&
+        !roster.errorCode.value)),
+)
+const rosterMessage = computed(() => {
+  if (!roster.isDesktop.value) return t('team.demo')
+  if (!connection.isRealLcuConnected) return t('team.connectFirst')
+  if (roster.isLoading.value) return t('team.loadingPlayers')
+  if (roster.errorCode.value === 'lcu.not_logged_in') return t('team.loginRequired')
+  if (roster.errorCode.value) return t('team.loadFailed')
+  if (roster.status.value === 'not_custom') return t('team.customOnly')
+  if (roster.status.value === 'no_lobby') return t('team.noLobby')
+  if (players.value.length < 2) return t('team.needPlayers')
+  if (roster.status.value === 'party') return t('team.partyRoster')
+  if (roster.status.value === 'champ_select') return t('team.selectionRoster')
+  return t('team.realPlayers')
+})
+watch(
+  roster.fingerprint,
+  () => {
+    if (hasResult.value) rosterChanged.value = true
+    reset()
+    copyGeneration++
+    isCopying.value = false
+  },
+  { flush: 'sync' },
+)
+watch(
+  () => [props.open, connection.isRealLcuConnected] as const,
+  ([open, connected]) => {
+    if (!open || (roster.isDesktop.value && !connected)) {
+      startGeneration++
+      isStarting.value = false
+      copyGeneration++
+      isCopying.value = false
+      rosterChanged.value = false
+    }
+  },
+)
 
 const copyButtonText = computed(() =>
   isCopying.value ? t('common.generating') : t('team.copyImage'),
@@ -52,7 +122,22 @@ function requestClose() {
   emit('close')
 }
 
-function startRandomize() {
+async function startRandomize() {
+  if (!canStart.value) return
+  if (roster.isDesktop.value) {
+    const before = roster.fingerprint.value
+    const attempt = ++startGeneration
+    isStarting.value = true
+    const loaded = await roster.refresh()
+    if (disposed || attempt !== startGeneration) return
+    isStarting.value = false
+    if (!loaded || !canStart.value) return
+    if (before !== roster.fingerprint.value) {
+      rosterChanged.value = true
+      return
+    }
+  }
+  rosterChanged.value = false
   start()
 }
 
@@ -69,23 +154,30 @@ async function copyTeamImage() {
     return
   }
 
+  const request = ++copyGeneration
   isCopying.value = true
   try {
     const result = await captureAndDeliverScreenshot(target, {
       fileNamePrefix: t('team.title'),
     })
+    if (disposed || request !== copyGeneration || !props.open) return
     feedback.notify(
       result.status === 'copied' ? t('toast.teamCopied') : t('toast.teamDownloaded'),
       'success',
     )
   } catch {
-    feedback.notify(t('toast.teamFailed'), 'error')
+    if (!disposed && request === copyGeneration) feedback.notify(t('toast.teamFailed'), 'error')
   } finally {
-    isCopying.value = false
+    if (request === copyGeneration) isCopying.value = false
   }
 }
 
-onUnmounted(dispose)
+onUnmounted(() => {
+  disposed = true
+  startGeneration++
+  copyGeneration++
+  dispose()
+})
 </script>
 
 <template>
@@ -107,7 +199,7 @@ onUnmounted(dispose)
     ></div>
 
     <div
-      class="drawer-content absolute right-0 bottom-0 left-0 space-y-5 rounded-t-3xl border-t border-on-solid/10 bg-drawer p-5 shadow-2xl"
+      class="drawer-content absolute right-0 bottom-0 left-0 max-h-[90vh] space-y-5 overflow-y-auto rounded-t-3xl border-t border-on-solid/10 bg-drawer p-5 shadow-2xl"
     >
       <div class="flex items-start justify-between">
         <div>
@@ -128,10 +220,43 @@ onUnmounted(dispose)
       </div>
 
       <div class="space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <p
+            :role="roster.errorCode.value ? 'alert' : 'status'"
+            class="text-xs leading-relaxed text-text-muted"
+          >
+            {{ rosterMessage }}
+          </p>
+          <button
+            v-if="roster.isDesktop.value"
+            id="refreshTeamPlayers"
+            type="button"
+            :disabled="
+              roster.isLoading.value ||
+              isShuffling ||
+              isStarting ||
+              isCopying ||
+              !connection.isRealLcuConnected
+            "
+            class="shrink-0 rounded-lg border border-on-solid/10 px-2 py-1 text-xs text-brand-light disabled:opacity-50"
+            @click="roster.refresh"
+          >
+            {{ t('team.refreshPlayers') }}
+          </button>
+        </div>
+        <p v-if="rosterChanged" class="text-xs text-warning" role="status">
+          {{ t('team.playersChanged') }}
+        </p>
+        <p
+          v-if="roster.isDesktop.value && players.length >= 2 && players.length % 2"
+          class="text-xs text-text-muted"
+        >
+          {{ t('team.oddPlayers') }}
+        </p>
         <div class="flex items-center justify-between text-xs">
           <span class="font-medium text-text-secondary">{{ t('team.participants') }}</span>
           <span id="playerCount" class="text-text-subtle">{{
-            t('team.participantCount', { count: TEAM_DRAW_PLAYERS.length })
+            t('team.participantCount', { count: players.length })
           }}</span>
         </div>
 
@@ -148,7 +273,7 @@ onUnmounted(dispose)
           >
             <div v-show="!hasResult" id="unrandomizedView" class="grid w-full grid-cols-2 gap-2.5">
               <div
-                v-for="player in TEAM_DRAW_PLAYERS"
+                v-for="player in players"
                 :key="player.id"
                 :title="player.name"
                 class="flex h-10 items-center justify-center truncate rounded-xl border border-on-solid/10 bg-surface-raised/50 px-2 text-xs font-bold text-on-solid shadow-inner"
@@ -223,9 +348,10 @@ onUnmounted(dispose)
         <button
           id="randomBtn"
           type="button"
-          :disabled="isShuffling"
+          :disabled="!canStart"
+          :aria-busy="isStarting"
           class="flex items-center justify-center gap-2 rounded-2xl bg-info px-4 py-3 text-sm font-extrabold text-surface-base shadow-lg shadow-info/20 transition-all hover:bg-info-light active:scale-95"
-          :class="isShuffling ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'"
+          :class="!canStart ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'"
           @click="startRandomize"
         >
           <i class="fa-solid fa-shuffle text-xs"></i>

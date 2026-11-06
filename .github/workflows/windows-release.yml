@@ -2,6 +2,11 @@ name: Windows x64 Release
 
 on:
   workflow_dispatch:
+    inputs:
+      draft_release:
+        description: Attach the verified installer to a draft release for the selected version tag
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -17,6 +22,7 @@ jobs:
     timeout-minutes: 60
     env:
       CARGO_TERM_COLOR: always
+      ARAM_UPDATE_REPOSITORY: ${{ vars.ARAM_UPDATE_REPOSITORY }}
 
     steps:
       - name: Checkout
@@ -75,15 +81,15 @@ jobs:
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 
       - name: Rust Windows check
-        run: cargo check --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
 
       - name: Rust Windows tests (LCU Mock, no real client)
-        run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
 
       # tauri.ci.conf.json changes only the beforeBuildCommand to a single Vite build.
       # Tests/typecheck/lint already ran above; this avoids a second frontend build.
       - name: Build Tauri NSIS
-        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/tauri.ci.conf.json
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/tauri.ci.conf.json -- --locked
 
       - name: Prepare NSIS artifact and SHA-256
         shell: pwsh
@@ -119,3 +125,53 @@ jobs:
             windows-installer.sha256
           if-no-files-found: error
           retention-days: 7
+
+      - name: Install and start the app on Windows
+        shell: pwsh
+        run: |
+          $installer = (Resolve-Path "aram-mayhem-windows-x64-setup.exe").Path
+          $installDir = Join-Path $env:RUNNER_TEMP "aram-mayhem-smoke"
+          $setup = Start-Process -FilePath $installer -ArgumentList "/S /D=$installDir" -PassThru
+          if (-not $setup.WaitForExit(120000)) {
+            Stop-Process -Id $setup.Id -Force
+            throw "NSIS silent install exceeded 120 seconds"
+          }
+          if ($setup.ExitCode -ne 0) { throw "NSIS install failed with code $($setup.ExitCode)" }
+          $binary = Join-Path $installDir "aram-mayhem.exe"
+          if (-not (Test-Path $binary)) { throw "Installed application is missing: $binary" }
+          $app = Start-Process -FilePath $binary -PassThru
+          try {
+            Start-Sleep -Seconds 8
+            if ($app.HasExited) { throw "Installed application exited with code $($app.ExitCode)" }
+            "NSIS installed and the application stayed running for 8 seconds on Windows." |
+              Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          } finally {
+            if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
+          }
+
+  draft:
+    name: Prepare a GitHub draft release
+    if: inputs.draft_release
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: aram-mayhem-windows-x64
+          path: installer
+      - name: Verify tag and prepare draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "$GITHUB_REF_TYPE" != tag ] || [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "Select the existing v$version tag before requesting a draft release." >&2
+            exit 1
+          fi
+          cd installer
+          tr -d '\r' < windows-installer.sha256 | sha256sum --check
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            aram-mayhem-windows-x64-setup.exe windows-installer.sha256

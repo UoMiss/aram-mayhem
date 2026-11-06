@@ -11,6 +11,7 @@ export default tseslint.config(
       'coverage/**',
       'node_modules/**',
       'references/**',
+      '.local-archive/**',
       '.cargo/**',
       '.rustup/**',
       'src-tauri/target/**',

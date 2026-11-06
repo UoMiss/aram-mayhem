@@ -15,6 +15,8 @@ pub enum LcuErrorCode {
     InvalidResponse,
     HttpStatus,
     Cancelled,
+    NotLoggedIn,
+    AccountChanged,
     Internal,
 }
 
@@ -31,6 +33,8 @@ impl LcuErrorCode {
             Self::InvalidResponse => "invalid_response",
             Self::HttpStatus => "http_status",
             Self::Cancelled => "cancelled",
+            Self::NotLoggedIn => "not_logged_in",
+            Self::AccountChanged => "account_changed",
             Self::Internal => "internal",
         }
     }

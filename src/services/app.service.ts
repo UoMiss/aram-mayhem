@@ -20,4 +20,10 @@ export async function getAppHealth(): Promise<AppHealth> {
   return tauriAdapter.getHealth()
 }
 
+export async function exitApp() {
+  if (!isTauri()) return
+  const { exitDesktopApp } = await import('@/adapters/tauri.adapter')
+  await exitDesktopApp()
+}
+
 export type { DesktopAdapter }
