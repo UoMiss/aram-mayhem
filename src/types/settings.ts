@@ -1,8 +1,29 @@
-export type SettingKey = 'autoStart' | 'autoRetry' | 'soundEffects'
+export type SettingKey = 'autoAccept'
 
-/** 设置页三个演示开关；仅保存在内存中，不接入系统或 LCU。 */
 export interface SettingsFlags {
-  autoStart: boolean
-  autoRetry: boolean
-  soundEffects: boolean
+  autoAccept: boolean
+}
+
+export const UPDATE_PHASES = [
+  'idle',
+  'checking',
+  'up_to_date',
+  'available',
+  'downloading',
+  'verifying',
+  'ready',
+  'installing',
+  'error',
+] as const
+export type UpdatePhase = (typeof UPDATE_PHASES)[number]
+export interface UpdateSnapshot {
+  revision: number
+  phase: UpdatePhase
+  latest: string | null
+  notes: string | null
+  downloaded: number
+  total: number | null
+  canDownload: boolean
+  canInstall: boolean
+  errorCode: string | null
 }

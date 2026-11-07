@@ -7,8 +7,8 @@ export type HistoryResult =
   | { source: 'real'; snapshot: MatchHistorySnapshot }
   | { source: 'mock'; matches: readonly MatchHistoryItem[] }
 
-export async function getMatchHistory(offset = 0): Promise<HistoryResult> {
+export async function getMatchHistory(): Promise<HistoryResult> {
   if (!isTauri()) return { source: 'mock', matches: MATCH_HISTORY }
   const { tauriHistoryAdapter } = await import('@/adapters/tauri.adapter')
-  return { source: 'real', snapshot: await tauriHistoryAdapter.getMatchHistory(offset) }
+  return { source: 'real', snapshot: await tauriHistoryAdapter.getMatchHistory() }
 }

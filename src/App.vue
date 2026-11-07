@@ -108,11 +108,6 @@ onMounted(() => {
 
     if (disposed) return
     try {
-      if (connection.isDesktopRuntime && !settings.settings.autoRetry) {
-        const { tauriSettingsAdapter } = await import('@/adapters/tauri.adapter')
-        await tauriSettingsAdapter.setAutoRetry(false).catch(() => undefined)
-        if (disposed) return
-      }
       const status = await startLcuMonitoring()
       if (disposed) {
         void stopLcuMonitoring().catch(() => undefined)
@@ -130,6 +125,10 @@ onMounted(() => {
 
     if (disposed) return
     try {
+      if (connection.isDesktopRuntime) {
+        await settings.initializeAutoAccept().catch(() => undefined)
+        if (disposed) return
+      }
       const snapshot = await startGameflowMonitoring()
       if (disposed) {
         void stopGameflowMonitoring().catch(() => undefined)

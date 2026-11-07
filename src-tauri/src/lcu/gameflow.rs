@@ -95,7 +95,9 @@ pub enum GameflowTransport {
 pub struct LobbySnapshot {
     pub lobby_id: Option<String>,
     pub queue_id: Option<i64>,
+    pub map_id: Option<i64>,
     pub game_mode: Option<String>,
+    pub is_custom_game: Option<bool>,
     pub member_count: Option<u32>,
     pub updated_at: u64,
 }
@@ -104,7 +106,9 @@ impl LobbySnapshot {
     fn same_data(&self, other: &Self) -> bool {
         self.lobby_id == other.lobby_id
             && self.queue_id == other.queue_id
+            && self.map_id == other.map_id
             && self.game_mode == other.game_mode
+            && self.is_custom_game == other.is_custom_game
             && self.member_count == other.member_count
     }
 }
@@ -141,8 +145,67 @@ impl ChampionSelectSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModeSource {
+    Lobby,
+    Gameflow,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModeContext {
+    pub queue_id: Option<i64>,
+    pub map_id: Option<i64>,
+    pub game_mode: Option<String>,
+    pub is_custom_game: Option<bool>,
+    pub source: ModeSource,
+}
+
+impl ModeContext {
+    fn merge(mut self, prior: Option<&Self>) -> Self {
+        if let Some(prior) = prior {
+            let compatible = self
+                .queue_id
+                .zip(prior.queue_id)
+                .is_none_or(|(a, b)| a == b)
+                && self
+                    .is_custom_game
+                    .zip(prior.is_custom_game)
+                    .is_none_or(|(a, b)| a == b);
+            if compatible {
+                self.queue_id = self.queue_id.or(prior.queue_id);
+                self.map_id = self.map_id.or(prior.map_id);
+                self.game_mode = self.game_mode.or_else(|| prior.game_mode.clone());
+                self.is_custom_game = self.is_custom_game.or(prior.is_custom_game);
+            }
+        }
+        self
+    }
+
+    fn from_snapshot(snapshot: &LobbySnapshot, source: ModeSource) -> Option<Self> {
+        let queue_id = snapshot
+            .queue_id
+            .filter(|id| (0..=9_007_199_254_740_991).contains(id));
+        let map_id = snapshot
+            .map_id
+            .filter(|id| (1..=9_007_199_254_740_991).contains(id));
+        if queue_id.is_none() && map_id.is_none() && snapshot.is_custom_game != Some(true) {
+            return None;
+        }
+        Some(Self {
+            queue_id,
+            map_id,
+            game_mode: snapshot.game_mode.clone(),
+            is_custom_game: snapshot.is_custom_game,
+            source,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameSessionContext {
+    pub mode_context: Option<ModeContext>,
     pub session_key: String,
     pub game_id: Option<String>,
     #[serde(skip)]
@@ -160,6 +223,7 @@ pub struct GameSessionContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameflowSnapshot {
+    pub ready_check_status: Option<crate::lcu::auto_accept::ReadyCheckStatus>,
     pub revision: u64,
     pub updated_at: u64,
     pub connected: bool,
@@ -176,6 +240,7 @@ pub struct GameflowSnapshot {
 impl GameflowSnapshot {
     pub fn initial(source: LcuSourceKind, simulated: bool) -> Self {
         Self {
+            ready_check_status: None,
             revision: 1,
             updated_at: now_ms(),
             connected: false,
@@ -265,6 +330,7 @@ impl GameSessionTracker {
             };
             self.generation = generation;
             self.current = Some(GameSessionContext {
+                mode_context: None,
                 session_key: key,
                 game_id: game_id.clone(),
                 opening_observed: matches!(phase, GameflowPhase::GameStart)
@@ -415,21 +481,93 @@ pub struct GameflowChanges {
     pub session_ended: Option<GameSessionContext>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct QueueConflict {
+    old_queue: i64,
+    new_queue: i64,
+    phase: String,
+    old_source: ModeSource,
+    new_source: ModeSource,
+}
+impl QueueConflict {
+    fn between(
+        old: Option<&ModeContext>,
+        new: Option<&ModeContext>,
+        phase: &GameflowPhase,
+    ) -> Option<Self> {
+        let (old, new) = old.zip(new)?;
+        let (old_queue, new_queue) = old.queue_id.zip(new.queue_id)?;
+        (old_queue != new_queue).then(|| Self {
+            old_queue,
+            new_queue,
+            phase: match phase {
+                GameflowPhase::Unknown(_) => "Unknown",
+                _ => phase.as_raw(),
+            }
+            .to_owned(),
+            old_source: old.source.clone(),
+            new_source: new.source.clone(),
+        })
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InstallSafety {
+    Unconfirmed,
+    Safe,
+    Busy,
+}
+
 pub struct GameflowMachine {
+    // Native-only identity of the successful sample; never serialized in Gameflow IPC.
+    account_key: Option<String>,
     snapshot: GameflowSnapshot,
     tracker: GameSessionTracker,
+    // Native-only: display snapshots must clear on disconnect without forgetting a live game.
+    install_safety: InstallSafety,
 }
 
 impl GameflowMachine {
     pub fn new(source: LcuSourceKind, simulated: bool) -> Self {
         Self {
+            account_key: None,
             snapshot: GameflowSnapshot::initial(source, simulated),
             tracker: GameSessionTracker::new(),
+            install_safety: InstallSafety::Unconfirmed,
         }
     }
 
     pub fn snapshot(&self) -> GameflowSnapshot {
         self.snapshot.clone()
+    }
+
+    pub fn install_blocked(&self) -> bool {
+        self.install_safety != InstallSafety::Safe
+    }
+
+    pub fn invalidate_install_safety(&mut self) {
+        if self.install_safety != InstallSafety::Busy {
+            self.install_safety = InstallSafety::Unconfirmed;
+        }
+    }
+
+    pub fn client_not_found(&mut self) -> GameflowChanges {
+        let changes = self.disconnected("client_not_found", "League client is not running");
+        // Absence of LeagueClient does not prove an already running game has ended.
+        if self.install_safety != InstallSafety::Busy
+            && self.snapshot.source == LcuSourceKind::Real
+            && !self.snapshot.simulated
+        {
+            self.install_safety = InstallSafety::Safe;
+        }
+        changes
+    }
+
+    pub fn account_key(&self) -> Option<String> {
+        self.account_key.clone()
+    }
+    pub fn set_account_key(&mut self, account: Option<String>) {
+        self.account_key = account;
     }
 
     pub fn observe(
@@ -439,6 +577,20 @@ impl GameflowMachine {
         transport: GameflowTransport,
     ) -> GameflowChanges {
         let previous = self.snapshot.clone();
+        self.install_safety =
+            if self.snapshot.source != LcuSourceKind::Real || self.snapshot.simulated {
+                InstallSafety::Unconfirmed
+            } else if matches!(
+                reading.phase,
+                GameflowPhase::None
+                    | GameflowPhase::Lobby
+                    | GameflowPhase::EndOfGame
+                    | GameflowPhase::TerminatedInError
+            ) {
+                InstallSafety::Safe
+            } else {
+                InstallSafety::Busy
+            };
         let mut observation = self.tracker.observe(
             generation,
             &reading.phase,
@@ -447,6 +599,38 @@ impl GameflowMachine {
             &reading.game_id,
         );
         if let Some(context) = observation.context.as_mut() {
+            let prior = previous.session.as_ref().filter(|session| {
+                session.session_key == context.session_key
+                    && session.connection_generation == context.connection_generation
+            });
+            // Only mode metadata survives gaps in a same-session observation.
+            // Current gameflow data takes precedence over lobby data.
+            context.mode_context = reading
+                .game
+                .as_ref()
+                .and_then(|game| ModeContext::from_snapshot(game, ModeSource::Gameflow))
+                .or_else(|| {
+                    reading
+                        .lobby
+                        .as_ref()
+                        .and_then(|lobby| ModeContext::from_snapshot(lobby, ModeSource::Lobby))
+                })
+                .map(|mode| mode.merge(prior.and_then(|session| session.mode_context.as_ref())))
+                .or_else(|| prior.and_then(|session| session.mode_context.clone()));
+            // Session/account/generation boundaries were resolved above. Log only
+            // a same-session conflict, with typed values and no player/game identifiers.
+            if let Some(conflict) = QueueConflict::between(
+                prior.and_then(|session| session.mode_context.as_ref()),
+                context.mode_context.as_ref(),
+                &reading.phase,
+            ) {
+                eprintln!("[lcu_mode_queue_conflict] {conflict:?}");
+            }
+            if prior.and_then(|session| session.mode_context.as_ref())
+                != context.mode_context.as_ref()
+            {
+                context.updated_at = now_ms();
+            }
             let previous_game = previous
                 .session
                 .as_ref()
@@ -457,6 +641,7 @@ impl GameflowMachine {
                 (_, Some(new)) => Some(new),
                 (old, None) => old.cloned(),
             };
+            self.tracker.current = Some(context.clone());
         }
         let mut next = previous.clone();
         next.connected = true;
@@ -464,6 +649,19 @@ impl GameflowMachine {
         next.raw_phase = Some(reading.raw_phase);
         next.transport = transport;
         next.session = observation.context;
+        if next.phase != Some(GameflowPhase::ReadyCheck)
+            || previous.phase != Some(GameflowPhase::ReadyCheck)
+            || previous
+                .session
+                .as_ref()
+                .map(|s| (&s.session_key, s.connection_generation))
+                != next
+                    .session
+                    .as_ref()
+                    .map(|s| (&s.session_key, s.connection_generation))
+        {
+            next.ready_check_status = None;
+        }
         next.code = None;
         next.message = None;
         if next != previous {
@@ -485,15 +683,48 @@ impl GameflowMachine {
         }
     }
 
+    pub fn set_ready_check_status(
+        &mut self,
+        status: Option<crate::lcu::auto_accept::ReadyCheckStatus>,
+    ) -> GameflowChanges {
+        let previous = self.snapshot.clone();
+        let status = if previous.connected && previous.phase == Some(GameflowPhase::ReadyCheck) {
+            status
+        } else {
+            None
+        };
+        if previous.ready_check_status != status {
+            self.snapshot.ready_check_status = status;
+            self.snapshot.revision = previous.revision.saturating_add(1);
+            self.snapshot.updated_at = now_ms();
+        }
+        GameflowChanges {
+            previous,
+            current: self.snapshot.clone(),
+            session_ended: None,
+        }
+    }
+
+    pub fn account_invalidated(&mut self) -> GameflowChanges {
+        let mut changes =
+            self.disconnected("account_changed", "Gameflow account context invalidated");
+        // Logging out/changing account is not an old-account match settlement event.
+        changes.session_ended = None;
+        changes
+    }
+
     pub fn disconnected(
         &mut self,
         code: impl Into<String>,
         message: impl Into<String>,
     ) -> GameflowChanges {
+        self.invalidate_install_safety();
         let previous = self.snapshot.clone();
         let ended = self.tracker.disconnect();
+        self.account_key = None;
         let mut next = previous.clone();
         next.connected = false;
+        next.ready_check_status = None;
         next.phase = None;
         next.raw_phase = None;
         next.transport = GameflowTransport::Disconnected;
@@ -524,6 +755,106 @@ impl GameflowMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn queue_conflict_diagnostics_are_bounded_and_only_report_changes() {
+        let old = ModeContext {
+            queue_id: Some(2400),
+            map_id: Some(12),
+            game_mode: Some("private-client-data".into()),
+            is_custom_game: None,
+            source: ModeSource::Lobby,
+        };
+        let mut new = old.clone();
+        assert!(QueueConflict::between(Some(&old), Some(&new), &GameflowPhase::Lobby).is_none());
+        new.queue_id = Some(450);
+        new.source = ModeSource::Gameflow;
+        let conflict = QueueConflict::between(
+            Some(&old),
+            Some(&new),
+            &GameflowPhase::Unknown("private-phase".into()),
+        )
+        .unwrap();
+        let log = format!("{conflict:?}");
+        assert!(
+            log.contains("2400")
+                && log.contains("450")
+                && log.contains("Lobby")
+                && log.contains("Gameflow")
+        );
+        assert!(!log.contains("private"));
+        assert!(QueueConflict::between(None, Some(&new), &GameflowPhase::Lobby).is_none());
+    }
+
+    #[test]
+    fn account_invalidation_clears_every_snapshot_without_settlement_event() {
+        let mut machine = GameflowMachine::new(LcuSourceKind::Real, false);
+        machine.observe(
+            1,
+            GameflowReading {
+                phase: GameflowPhase::EndOfGame,
+                raw_phase: "EndOfGame".into(),
+                game_id: Some("42".into()),
+                lobby: None,
+                champion_select: None,
+                game: Some(LobbySnapshot {
+                    lobby_id: None,
+                    queue_id: Some(2400),
+                    map_id: Some(12),
+                    game_mode: Some("ARAM".into()),
+                    is_custom_game: None,
+                    member_count: Some(10),
+                    updated_at: 1,
+                }),
+            },
+            GameflowTransport::Polling,
+        );
+        let changes = machine.account_invalidated();
+        assert!(changes.current.session.is_none());
+        assert!(!changes.current.connected);
+        assert!(changes.session_ended.is_none());
+    }
+
+    #[test]
+    fn partial_map_observations_merge_only_with_compatible_mode() {
+        let old = ModeContext {
+            queue_id: Some(2400),
+            map_id: Some(12),
+            game_mode: Some("ARAM".into()),
+            is_custom_game: Some(false),
+            source: ModeSource::Lobby,
+        };
+        let mut partial = old.clone();
+        partial.map_id = None;
+        assert_eq!(partial.clone().merge(Some(&old)).map_id, Some(12));
+        partial.queue_id = Some(420);
+        assert_eq!(partial.merge(Some(&old)).map_id, None);
+        let mut map_only = old.clone();
+        map_only.queue_id = None;
+        map_only.map_id = Some(11);
+        let merged = map_only.merge(Some(&old));
+        assert_eq!(merged.queue_id, Some(2400));
+        assert_eq!(merged.map_id, Some(11));
+        let a = LobbySnapshot {
+            lobby_id: None,
+            queue_id: None,
+            map_id: Some(12),
+            game_mode: None,
+            is_custom_game: None,
+            member_count: None,
+            updated_at: 1,
+        };
+        assert_eq!(
+            ModeContext::from_snapshot(&a, ModeSource::Gameflow)
+                .unwrap()
+                .map_id,
+            Some(12)
+        );
+        assert!(!a.same_data(&LobbySnapshot {
+            map_id: Some(11),
+            ..a.clone()
+        }));
+    }
 
     #[test]
     fn parses_all_known_phases_and_unknown() {
@@ -573,7 +904,9 @@ mod tests {
         let lobby = LobbySnapshot {
             lobby_id: Some("lobby-1".to_string()),
             queue_id: Some(450),
+            map_id: None,
             game_mode: Some("ARAM".to_string()),
+            is_custom_game: None,
             member_count: Some(10),
             updated_at: 1,
         };
@@ -623,7 +956,9 @@ mod tests {
         let lobby = Some(LobbySnapshot {
             lobby_id: Some("lobby-1".to_string()),
             queue_id: Some(450),
+            map_id: None,
             game_mode: Some("ARAM".to_string()),
+            is_custom_game: None,
             member_count: Some(10),
             updated_at: 1,
         });
@@ -697,7 +1032,9 @@ mod tests {
         let lobby = Some(LobbySnapshot {
             lobby_id: Some("lobby-1".to_string()),
             queue_id: Some(450),
+            map_id: None,
             game_mode: Some("ARAM".to_string()),
+            is_custom_game: None,
             member_count: None,
             updated_at: 1,
         });
@@ -714,7 +1051,9 @@ mod tests {
         let lobby = LobbySnapshot {
             lobby_id: Some("lobby-1".to_string()),
             queue_id: Some(450),
+            map_id: None,
             game_mode: Some("ARAM".to_string()),
+            is_custom_game: None,
             member_count: Some(5),
             updated_at: 1,
         };
@@ -740,5 +1079,111 @@ mod tests {
             assert_eq!(first.current, repeated.current);
             assert!(repeated.session_ended.is_none());
         }
+    }
+    #[test]
+    fn mode_survives_stages_but_never_crosses_sessions_or_generations() {
+        let mut machine = GameflowMachine::new(LcuSourceKind::Real, false);
+        let lobby = LobbySnapshot {
+            lobby_id: Some("room".into()),
+            queue_id: Some(2400),
+            map_id: Some(12),
+            game_mode: Some("ARAM".into()),
+            is_custom_game: Some(false),
+            member_count: Some(3),
+            updated_at: 1,
+        };
+        let reading = |phase: GameflowPhase, game_id: Option<&str>| GameflowReading {
+            raw_phase: phase.as_raw().to_string(),
+            phase,
+            lobby: None,
+            champion_select: None,
+            game_id: game_id.map(str::to_owned),
+            game: None,
+        };
+        let mut first = reading(GameflowPhase::Lobby, None);
+        first.lobby = Some(lobby.clone());
+        let start = machine.observe(1, first, GameflowTransport::Polling);
+        let key = start.current.session.unwrap().session_key;
+        for phase in [
+            GameflowPhase::Matchmaking,
+            GameflowPhase::ReadyCheck,
+            GameflowPhase::ChampSelect,
+        ] {
+            let current = machine
+                .observe(1, reading(phase, None), GameflowTransport::Polling)
+                .current;
+            let session = current.session.unwrap();
+            assert_eq!(session.session_key, key);
+            assert!(session.lobby.is_none());
+            assert_eq!(session.mode_context.as_ref().unwrap().map_id, Some(12));
+            assert_eq!(session.mode_context.unwrap().queue_id, Some(2400));
+        }
+        let mut started = reading(GameflowPhase::GameStart, Some("42"));
+        started.game = Some(LobbySnapshot {
+            queue_id: Some(450),
+            map_id: None,
+            ..lobby
+        });
+        let session = machine
+            .observe(1, started, GameflowTransport::Websocket)
+            .current
+            .session
+            .unwrap();
+        assert_eq!(session.session_key, key);
+        assert_eq!(session.mode_context.as_ref().unwrap().queue_id, Some(450));
+        assert_eq!(session.mode_context.as_ref().unwrap().map_id, None);
+        assert_eq!(session.mode_context.unwrap().source, ModeSource::Gameflow);
+        for phase in [
+            GameflowPhase::InProgress,
+            GameflowPhase::Reconnect,
+            GameflowPhase::WaitingForStats,
+            GameflowPhase::EndOfGame,
+        ] {
+            let session = machine
+                .observe(1, reading(phase, Some("42")), GameflowTransport::Polling)
+                .current
+                .session
+                .unwrap();
+            assert_eq!(session.mode_context.unwrap().queue_id, Some(450));
+        }
+        let next = machine.observe(
+            1,
+            reading(GameflowPhase::Lobby, None),
+            GameflowTransport::Polling,
+        );
+        assert!(next.current.session.unwrap().mode_context.is_none());
+        let changed = machine.observe(
+            2,
+            reading(GameflowPhase::InProgress, Some("42")),
+            GameflowTransport::Polling,
+        );
+        assert!(changed.current.session.unwrap().mode_context.is_none());
+        let none = machine.observe(
+            2,
+            reading(GameflowPhase::None, None),
+            GameflowTransport::Polling,
+        );
+        assert!(none.current.session.is_none());
+    }
+
+    #[test]
+    fn mode_rejects_invalid_queues_and_does_not_infer_from_game_mode() {
+        let mut metadata = LobbySnapshot {
+            lobby_id: None,
+            queue_id: None,
+            map_id: None,
+            game_mode: Some("ARAM".into()),
+            is_custom_game: None,
+            member_count: Some(10),
+            updated_at: 1,
+        };
+        for queue in [None, Some(-1), Some(i64::MAX)] {
+            metadata.queue_id = queue;
+            assert!(ModeContext::from_snapshot(&metadata, ModeSource::Lobby).is_none());
+        }
+        metadata.is_custom_game = Some(true);
+        let mode = ModeContext::from_snapshot(&metadata, ModeSource::Gameflow).unwrap();
+        assert_eq!(mode.queue_id, None);
+        assert_eq!(mode.is_custom_game, Some(true));
     }
 }

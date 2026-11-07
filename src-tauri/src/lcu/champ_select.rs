@@ -37,14 +37,14 @@ fn parse_team(value: Option<&Value>, team: &str) -> Vec<ChampionSelectPlayer> {
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter_map(|player| {
+        .map(|player| {
             let player_id = player
                 .get("puuid")
                 .and_then(Value::as_str)
                 .map(str::to_string)
                 .or_else(|| player.get("summonerId").and_then(value_as_string));
             let champion_id = player.get("championId").and_then(Value::as_i64);
-            Some(ChampionSelectPlayer {
+            ChampionSelectPlayer {
                 player_id,
                 champion_id,
                 team: team.to_string(),
@@ -53,7 +53,7 @@ fn parse_team(value: Option<&Value>, team: &str) -> Vec<ChampionSelectPlayer> {
                     .get("assignedPosition")
                     .and_then(Value::as_str)
                     .map(str::to_string),
-            })
+            }
         })
         .collect()
 }

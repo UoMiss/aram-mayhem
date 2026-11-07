@@ -17,6 +17,8 @@ const GAMEFLOW_PHASE_URI: &str = "/lol-gameflow/v1/gameflow-phase";
 const GAMEFLOW_SESSION_URI: &str = "/lol-gameflow/v1/session";
 const LOBBY_URI: &str = "/lol-lobby/v2/lobby";
 const CHAMP_SELECT_URI: &str = "/lol-champ-select/v1/session";
+const SUMMONER_URI: &str = "/lol-summoner/v1/current-summoner";
+const LOGIN_URI: &str = "/lol-login/v1/session";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GameflowEventNotification {
@@ -76,10 +78,10 @@ impl GameflowEventSource for LcuWebSocketEventSource {
 
             match message {
                 Message::Text(text) => {
-                    if let Some(event) = parse_event_message(text.as_str())? {
-                        if is_relevant_uri(&event.uri) {
-                            let _ = wake.try_send(());
-                        }
+                    if let Some(event) = parse_event_message(text.as_str())?
+                        && is_relevant_uri(&event.uri)
+                    {
+                        let _ = wake.try_send(());
                     }
                 }
                 Message::Ping(payload) => {
@@ -137,6 +139,9 @@ fn is_relevant_uri(uri: &str) -> bool {
         || path == GAMEFLOW_SESSION_URI
         || path == LOBBY_URI
         || path == CHAMP_SELECT_URI
+        || path == SUMMONER_URI
+        || path == LOGIN_URI
+        || path == "/lol-matchmaking/v1/ready-check"
 }
 
 /// LCU uses WAMP JSON frames: [8, "OnJsonApiEvent", { uri, eventType, data }].
@@ -176,6 +181,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn account_update_and_logout_events_wake_gameflow_sampling() {
+        for uri in [SUMMONER_URI, LOGIN_URI] {
+            let message = serde_json::json!([8,"OnJsonApiEvent",{"uri":uri,"eventType":"Delete","data":null}]).to_string();
+            assert!(parse_event_message(&message).unwrap().is_some());
+        }
+    }
+
+    #[test]
     fn parses_relevant_lcu_wamp_event() {
         let event = parse_event_message(
             r#"[8,"OnJsonApiEvent",{"uri":"/lol-gameflow/v1/gameflow-phase","eventType":"Update","data":"ChampSelect"}]"#,
@@ -190,11 +203,9 @@ mod tests {
     #[test]
     fn ignores_unrelated_or_non_event_frames() {
         assert!(
-            parse_event_message(
-                r#"[8,"OnJsonApiEvent",{"uri":"/lol-summoner/v1/current-summoner","data":{}}]"#
-            )
-            .expect("parse")
-            .is_none()
+            parse_event_message(r#"[8,"OnJsonApiEvent",{"uri":"/lol-chat/v1/friends","data":{}}]"#)
+                .expect("parse")
+                .is_none()
         );
         assert!(
             parse_event_message("[5,\"OnJsonApiEvent\"]")

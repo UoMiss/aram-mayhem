@@ -1,7 +1,7 @@
 import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { getMatchHistory } from '@/services/history.service'
 import { LcuServiceError, normalizeLcuError } from '@/services/desktop-error'
-import { formatDuration, toHistoryItem } from '@/shared/lib/history-presentation'
+import { toHistoryItem } from '@/shared/lib/history-presentation'
 import { useConnectionStore } from '@/stores/connection'
 import { useHomeStore } from '@/stores/home'
 import { useUiStore } from '@/stores/ui'
@@ -12,7 +12,6 @@ export const HOME_RECENT_MATCH_LIMIT = 5
 
 export interface HomeRecentMatch {
   match: MatchHistoryItem
-  duration?: string
 }
 
 type RecentMatchState =
@@ -25,7 +24,7 @@ export function useHomeData() {
   const connection = useConnectionStore()
   const home = useHomeStore()
   const ui = useUiStore()
-  const active = computed(() => ui.activeTab === 'home' && connection.isRealLcuConnected)
+  const active = computed(() => ui.activeTab === 'home' && connection.canReadAccountData)
   const account = computed(() => (active.value ? home.snapshot?.accountKey : undefined))
   const recent = shallowRef<RecentMatchState>({ status: 'idle' })
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -49,8 +48,7 @@ export function useHomeData() {
         .sort((left, right) => right.createdAt - left.createdAt)
         .slice(0, HOME_RECENT_MATCH_LIMIT)
         .map((match) => ({
-          match: toHistoryItem(match),
-          duration: formatDuration(match.durationSeconds),
+          match: toHistoryItem(match, accountKey),
         }))
       recent.value = entries.length ? { status: 'ready', entries } : { status: 'empty' }
     } catch (error) {

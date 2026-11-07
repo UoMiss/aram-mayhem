@@ -3,23 +3,24 @@ import { useI18n } from 'vue-i18n'
 import { getHomeSnapshot } from '@/services/home.service'
 import { getLockedMatchRule, lockMatchRule } from '@/services/match-rule.service'
 import { normalizeLcuError } from '@/services/desktop-error'
-import { playMatchCue } from '@/services/match-sound'
 import { useConnectionStore } from '@/stores/connection'
 import { useFeedbackStore } from '@/stores/feedback'
+import { useHomeStore } from '@/stores/home'
+import { useSettlementStore } from '@/stores/settlement'
 import { useHistoryStore } from '@/stores/history'
 import { useMatchRulesStore } from '@/stores/match-rules'
 import { useRulesStore } from '@/stores/rules'
-import { useSettingsStore } from '@/stores/settings'
 import type { GameSessionContext } from '@/types/lcu'
 import type { OpeningChoice } from '@/types/match-rule-api'
 
 export function useMatchLifecycle() {
   const connection = useConnectionStore()
   const history = useHistoryStore()
+  const home = useHomeStore()
+  const settlement = useSettlementStore()
   const rules = useRulesStore()
   const matchRules = useMatchRulesStore()
   const feedback = useFeedbackStore()
-  const settings = useSettingsStore()
   const { t } = useI18n({ useScope: 'global' })
   let lastSession: GameSessionContext | null = null
   let activeGame: { id: string; accountKey?: string } | null = null
@@ -37,7 +38,7 @@ export function useMatchLifecycle() {
   let disposed = false
 
   function isCurrent(token: number) {
-    return !disposed && token === generation && connection.isRealLcuConnected
+    return !disposed && token === generation && connection.canReadAccountData
   }
 
   function resetOpening() {
@@ -59,7 +60,7 @@ export function useMatchLifecycle() {
       (session.phase !== 'game_start' && session.phase !== 'in_progress') ||
       lockPending ||
       openingTimer !== undefined ||
-      !connection.isRealLcuConnected
+      !connection.canReadAccountData
     )
       return
     const token = generation
@@ -71,7 +72,6 @@ export function useMatchLifecycle() {
         matchRules.accept(record)
         activeGame = { id: gameId, accountKey: record.accountKey }
         resetOpening()
-        if (settings.settings.soundEffects) playMatchCue()
       })
       .catch((error) => {
         if (!isCurrent(token) || opening !== choice) return
@@ -110,7 +110,7 @@ export function useMatchLifecycle() {
   async function finish(session: GameSessionContext | null) {
     const gameId = session?.gameId
     if (
-      !connection.isRealLcuConnected ||
+      !connection.canReadAccountData ||
       !gameId ||
       finishedGame === gameId ||
       finishing?.id === gameId ||
@@ -146,7 +146,6 @@ export function useMatchLifecycle() {
         return
       finishedGame = gameId
       history.openLiveSettlement(gameId, accountKey)
-      if (settings.settings.soundEffects) playMatchCue()
     } catch {
       if (isCurrent(token) && finishing === task) {
         if (finishAttempts.count < 4) {
@@ -164,9 +163,13 @@ export function useMatchLifecycle() {
   }
 
   watch(
-    () => connection.isRealLcuConnected,
-    (connected) => {
-      if (!connected) {
+    () => [connection.canReadAccountData, connection.isAccountInvalidated] as const,
+    ([connected, accountInvalidated]) => {
+      if (connection.isDesktopRuntime && (!connected || accountInvalidated)) {
+        // Clear display state and invalidate in-flight reads, never the native rule book.
+        home.clearRealHome()
+        history.clearRealHistory()
+        settlement.clear()
         generation++
         disconnectedRevision = connection.gameflowSnapshot?.revision ?? -1
         lastSession = null
@@ -176,14 +179,18 @@ export function useMatchLifecycle() {
         finishAttempts = { id: '', count: 0 }
         recoveredGame = null
         resetOpening()
-        // Keep the exact observed game ID so the same round can finish after reconnecting.
+        // A transport reconnect can finish the same game; an account boundary cannot.
+        if (accountInvalidated) {
+          activeGame = null
+          finishedGame = null
+        }
       }
     },
-    { flush: 'sync' },
+    { immediate: true, flush: 'sync' },
   )
 
   watch(
-    () => [connection.gameflowSnapshot, connection.isRealLcuConnected] as const,
+    () => [connection.gameflowSnapshot, connection.canReadAccountData] as const,
     ([snapshot, connected]) => {
       if (
         !connected ||

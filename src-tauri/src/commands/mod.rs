@@ -7,3 +7,7 @@ pub mod match_rules;
 pub mod participants;
 pub mod settings;
 pub mod settlement;
+
+pub mod metadata;
+
+pub mod updates;

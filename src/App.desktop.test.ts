@@ -42,7 +42,7 @@ describe('Tauri AppShell state binding', () => {
 
   it('shows the connection screen while the real client is not running', async () => {
     const { html } = await renderWith(status({ status: 'not_running', code: 'client_not_found' }))
-    expect(html).toContain('未检测到英雄联盟客户端')
+    expect(html).toContain('等待客户端启动')
     expect(html).toContain('id="connection-detail-panel"')
     expect(html).toContain('client_not_found')
     expect(html).not.toContain('connection-dot')
@@ -67,7 +67,7 @@ describe('Tauri AppShell state binding', () => {
     const { html } = await renderWith(
       status({ revision: 2, status: 'disconnected', code: 'client_exited' }),
     )
-    expect(html).toContain('LCU 连接已断开')
+    expect(html).toContain('连接已断开')
     expect(html).not.toContain('id="page-home"')
   })
 
@@ -78,7 +78,7 @@ describe('Tauri AppShell state binding', () => {
 
   it('never renders the removed hard-coded port/process diagnostics', async () => {
     const { html } = await renderWith(status({ status: 'error', code: 'authentication_failed' }))
-    expect(html).toContain('LCU 连接失败')
+    expect(html).toContain('连接失败')
     expect(html).toContain('authentication_failed')
     expect(html).toContain('请重新登录英雄联盟客户端')
     expect(html).not.toContain('2999')

@@ -1,6 +1,7 @@
 export interface LcuHistoryMatch {
   id: string
   queueId: number | null
+  mapId: number | null
   gameMode: string | null
   gameType: string | null
   createdAt: number
@@ -21,5 +22,4 @@ export interface MatchHistorySnapshot {
   displayName: string | null
   matches: LcuHistoryMatch[]
   updatedAt: number
-  nextOffset?: number | null
 }

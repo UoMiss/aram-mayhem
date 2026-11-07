@@ -200,3 +200,69 @@ describe('image service', () => {
     expect(anchor.click).toHaveBeenCalledOnce()
   })
 })
+
+describe('screenshot delivery validity', () => {
+  it('starts clipboard delivery in the same turn as a synchronous validity check', async () => {
+    vi.mocked(html2canvas).mockResolvedValue(canvasWith(pngBlob))
+    let current = true
+    let currentAtWrite: boolean | undefined
+    const write = vi.fn(() => {
+      currentAtWrite = current
+      return Promise.resolve()
+    })
+    vi.stubGlobal('navigator', { clipboard: { write } })
+    vi.stubGlobal(
+      'ClipboardItem',
+      class {
+        constructor(public items: Record<string, Blob>) {}
+      },
+    )
+    const result = await captureAndDeliverScreenshot(screenshotTarget(), {
+      beforeDeliver: () => {
+        const valid = current
+        queueMicrotask(() => {
+          current = false
+        })
+        return valid
+      },
+    })
+    expect(result.status).toBe('copied')
+    expect(write).toHaveBeenCalledOnce()
+    expect(currentAtWrite).toBe(true)
+  })
+  it('blocks clipboard writes when capture has become invalid', async () => {
+    vi.mocked(html2canvas).mockResolvedValue(canvasWith(pngBlob))
+    const write = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { write } })
+    vi.stubGlobal(
+      'ClipboardItem',
+      class {
+        constructor(public items: Record<string, Blob>) {}
+      },
+    )
+    await expect(
+      captureAndDeliverScreenshot(screenshotTarget(), { beforeDeliver: async () => false }),
+    ).rejects.toThrow('截图结果已失效')
+    expect(write).not.toHaveBeenCalled()
+  })
+  it('rechecks before download if the clipboard attempt fails', async () => {
+    vi.mocked(html2canvas).mockResolvedValue(canvasWith(pngBlob))
+    const write = vi.fn().mockRejectedValue(new Error('denied'))
+    vi.stubGlobal('navigator', { clipboard: { write } })
+    vi.stubGlobal(
+      'ClipboardItem',
+      class {
+        constructor(public items: Record<string, Blob>) {}
+      },
+    )
+    const validate = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    const createObjectURL = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL: vi.fn() })
+    await expect(
+      captureAndDeliverScreenshot(screenshotTarget(), { beforeDeliver: validate }),
+    ).rejects.toThrow('截图结果已失效')
+    expect(write).toHaveBeenCalledOnce()
+    expect(validate).toHaveBeenCalledTimes(2)
+    expect(createObjectURL).not.toHaveBeenCalled()
+  })
+})

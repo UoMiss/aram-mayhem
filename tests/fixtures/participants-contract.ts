@@ -4,6 +4,15 @@ export function testParticipants(
   overrides: Partial<ParticipantSnapshot> = {},
 ): ParticipantSnapshot {
   return {
+    completeness: overrides.status && overrides.status !== 'custom' ? 'unknown' : 'complete',
+    evidence: 'custom_teams',
+    issue: null,
+    eligibleCount: count,
+    unresolvedCount: 0,
+    context:
+      overrides.status && overrides.status !== 'custom'
+        ? null
+        : { sessionKey: 'session-1', connectionGeneration: 1 },
     accountKey: 'account-1',
     lobbyKey: 'room-1',
     status: 'custom',

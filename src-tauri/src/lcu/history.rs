@@ -9,7 +9,6 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
 pub const RECENT_MATCH_LIMIT: usize = 20;
-pub const MAX_HISTORY_OFFSET: u32 = 980;
 const PROFILE_PATH: &str = "/lol-summoner/v1/current-summoner";
 const CHAMPIONS_PATH: &str = "/lol-game-data/assets/v1/champion-summary.json";
 
@@ -18,6 +17,7 @@ const CHAMPIONS_PATH: &str = "/lol-game-data/assets/v1/champion-summary.json";
 pub struct HistoryMatch {
     pub id: String,
     pub queue_id: Option<u32>,
+    pub map_id: Option<i64>,
     pub game_mode: Option<String>,
     pub game_type: Option<String>,
     pub created_at: u64,
@@ -41,7 +41,6 @@ pub struct MatchHistorySnapshot {
     pub display_name: Option<String>,
     pub matches: Vec<HistoryMatch>,
     pub updated_at: u64,
-    pub next_offset: Option<u32>,
 }
 
 fn invalid() -> LcuError {
@@ -69,7 +68,7 @@ fn identifier(value: &Value) -> Option<String> {
         })
 }
 
-pub(super) fn profile_identity(profile: &Value) -> Result<&str, LcuError> {
+pub(crate) fn profile_identity(profile: &Value) -> Result<&str, LcuError> {
     profile
         .get("puuid")
         .and_then(Value::as_str)
@@ -130,6 +129,7 @@ fn parse_match(
             .get("gameId")
             .and_then(identifier)
             .ok_or_else(invalid)?,
+        map_id: crate::lcu::metadata::map_id(game.get("mapId")),
         queue_id: game
             .get("queueId")
             .and_then(Value::as_u64)
@@ -183,7 +183,7 @@ pub fn parse_history(
         .iter()
         .map(|game| parse_match(game, puuid, names))
         .collect::<Result<Vec<_>, _>>()?;
-    matches.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    matches.sort_by_key(|game| std::cmp::Reverse(game.created_at));
     let mut ids = HashSet::new();
     matches.retain(|game| ids.insert(game.id.clone()));
     matches.truncate(RECENT_MATCH_LIMIT);
@@ -193,27 +193,17 @@ pub fn parse_history(
 #[async_trait]
 pub trait HistorySource: Send + Sync {
     async fn profile(&self) -> Result<Value, LcuError>;
-    async fn matches(&self, puuid: &str, offset: u32) -> Result<Value, LcuError>;
+    async fn matches(&self, puuid: &str) -> Result<Value, LcuError>;
     async fn friends(&self) -> Option<HashSet<String>> {
         None
     }
     async fn champion_names(&self) -> HashMap<u32, String>;
 }
 
-#[cfg(test)]
 pub async fn load_history(source: &impl HistorySource) -> Result<MatchHistorySnapshot, LcuError> {
-    load_history_page(source, 0).await
-}
-pub async fn load_history_page(
-    source: &impl HistorySource,
-    offset: u32,
-) -> Result<MatchHistorySnapshot, LcuError> {
-    if offset > MAX_HISTORY_OFFSET || !offset.is_multiple_of(RECENT_MATCH_LIMIT as u32) {
-        return Err(invalid());
-    }
     let profile = source.profile().await?;
     let puuid = profile_identity(&profile)?;
-    let raw = source.matches(puuid, offset).await?;
+    let raw = source.matches(puuid).await?;
     let (names, friends) = tokio::join!(source.champion_names(), source.friends());
     let mut matches = parse_history(&raw, puuid, &names)?;
     let games = raw
@@ -242,9 +232,6 @@ pub async fn load_history_page(
             game.is_friend = games_with_friends.contains(&game.id);
         }
     }
-    let next = offset + RECENT_MATCH_LIMIT as u32;
-    let next_offset =
-        (games.len() >= RECENT_MATCH_LIMIT && next <= MAX_HISTORY_OFFSET).then_some(next);
     let current = source.profile().await?;
     if profile_identity(&current)? != puuid {
         return Err(LcuError::new(
@@ -261,7 +248,6 @@ pub async fn load_history_page(
         account_key: puuid.to_string(),
         display_name,
         matches,
-        next_offset,
         updated_at: now_ms(),
     })
 }
@@ -300,11 +286,11 @@ impl HistorySource for SystemHistorySource {
                 )
             })
     }
-    async fn matches(&self, puuid: &str, offset: u32) -> Result<Value, LcuError> {
+    async fn matches(&self, puuid: &str) -> Result<Value, LcuError> {
         // puuid was validated by profile_identity; callers cannot supply a URL/path.
         let path = format!(
-            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={offset}&endIndex={}",
-            offset + RECENT_MATCH_LIMIT as u32
+            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex={}",
+            RECENT_MATCH_LIMIT
         );
         self.http.get_json(&self.client, &path).await
     }
@@ -356,6 +342,21 @@ mod tests {
     }
     fn names() -> HashMap<u32, String> {
         HashMap::from([(221, "泽丽".to_string())])
+    }
+
+    #[test]
+    fn historical_maps_belong_to_each_game_and_missing_stays_unknown() {
+        let mut raw = fixture();
+        raw["games"]["games"][0]["mapId"] = json!(11);
+        raw["games"]["games"][1]["mapId"] = json!(12);
+        let result = parse_history(&raw, "test-current-account", &names()).unwrap();
+        assert_eq!(result[0].map_id, Some(11));
+        assert_eq!(result[1].map_id, Some(12));
+        raw["games"]["games"][0]["mapId"] = json!(0);
+        assert_eq!(
+            parse_history(&raw, "test-current-account", &names()).unwrap()[0].map_id,
+            None
+        );
     }
 
     #[test]
@@ -428,7 +429,7 @@ mod tests {
         async fn profile(&self) -> Result<Value, LcuError> {
             Ok(self.profiles.lock().unwrap().pop_front().unwrap())
         }
-        async fn matches(&self, puuid: &str, _offset: u32) -> Result<Value, LcuError> {
+        async fn matches(&self, puuid: &str) -> Result<Value, LcuError> {
             assert_eq!(puuid, "test-current-account");
             self.calls.fetch_add(1, Ordering::SeqCst);
             Ok(fixture())

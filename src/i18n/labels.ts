@@ -2,7 +2,18 @@ import type { HistoryFilter, MatchMode, MatchResult } from '@/types/history'
 import type { HomeGameMode, HomeRoomPhase, ScoreRule } from '@/types/home'
 import type { PlayerRelation, SettlementStat, TeamSide } from '@/types/match-detail'
 import type { SettingKey } from '@/types/settings'
-import type { GameflowPhase } from '@/types/lcu'
+import type { GameflowPhase, LcuConnectionStatus } from '@/types/lcu'
+
+export const CONNECTION_STATUS_KEYS: Record<LcuConnectionStatus, string> = {
+  unsupported_platform: 'connection.unsupported',
+  not_running: 'connection.notRunning',
+  discovering: 'connection.discovering',
+  connecting: 'connection.connecting',
+  reconnecting: 'connection.connecting',
+  connected: 'connection.connected',
+  disconnected: 'connection.disconnected',
+  error: 'connection.error',
+}
 
 export const SCORE_RULE_NAME_KEYS: Record<ScoreRule, string> = {
   damage: 'rules.damage.name',
@@ -56,9 +67,7 @@ export const STAT_LABEL_KEYS: Record<SettlementStat['key'], string> = {
 }
 
 export const SETTING_LABEL_KEYS: Record<SettingKey, string> = {
-  autoStart: 'settings.autoStart',
-  autoRetry: 'settings.autoRetry',
-  soundEffects: 'settings.soundEffects',
+  autoAccept: 'settings.autoAccept',
 }
 
 export const GAMEFLOW_PHASE_KEYS: Record<GameflowPhase, string> = {

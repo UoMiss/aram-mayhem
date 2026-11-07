@@ -26,6 +26,7 @@ export interface SettlementSnapshot {
   id: string
   accountKey: string
   queueId: number | null
+  mapId: number | null
   gameMode: string | null
   gameType: string | null
   createdAt: number

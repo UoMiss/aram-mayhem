@@ -1,16 +1,14 @@
 import { ref, toValue, type MaybeRefOrGetter, type Ref } from 'vue'
 import type { TeamPlayer } from '@/types/tools'
-import { formatBeijingTime, splitTeams } from './teamRandomizer'
+import { formatBeijingTime, splitCustomTeams } from './teamRandomizer'
 
 export const SHUFFLE_DURATION_MS = 3000
-export const SHUFFLE_TICK_MS = 50
 export const COUNTDOWN_STEP_MS = 1000
 
 export interface UseTeamShuffleOptions {
   random?: () => number
   now?: () => Date
   animationMs?: number
-  tickMs?: number
   countdownStepMs?: number
 }
 
@@ -28,16 +26,15 @@ export interface TeamShuffleController {
 
 /**
  * 随机分组的 Vue 动画控制。纯洗牌算法在 teamRandomizer.ts 中独立测试。
- * 组件负责在卸载时调用 dispose()；关闭抽屉不会销毁状态。
+ * 最终分组只计算一次；组件关闭时调用 reset()，动画仅控制展示。
  */
 export function useTeamShuffle(
   players: MaybeRefOrGetter<readonly TeamPlayer[]>,
   options: UseTeamShuffleOptions = {},
 ): TeamShuffleController {
-  const random = options.random ?? Math.random
+  const random = options.random
   const now = options.now ?? (() => new Date())
   const animationMs = options.animationMs ?? SHUFFLE_DURATION_MS
-  const tickMs = options.tickMs ?? SHUFFLE_TICK_MS
   const countdownStepMs = options.countdownStepMs ?? COUNTDOWN_STEP_MS
 
   const isShuffling = ref(false)
@@ -48,17 +45,12 @@ export function useTeamShuffle(
   const randomTime = ref('')
   let drawPlayers: readonly TeamPlayer[] = []
   let countdownTimer: ReturnType<typeof setInterval> | null = null
-  let shuffleTimer: ReturnType<typeof setInterval> | null = null
   let finishTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearTimers() {
     if (countdownTimer) {
       clearInterval(countdownTimer)
       countdownTimer = null
-    }
-    if (shuffleTimer) {
-      clearInterval(shuffleTimer)
-      shuffleTimer = null
     }
     if (finishTimer) {
       clearTimeout(finishTimer)
@@ -67,14 +59,13 @@ export function useTeamShuffle(
   }
 
   function applySplit() {
-    const split = splitTeams(drawPlayers, random)
+    const split = splitCustomTeams(drawPlayers, random)
     groupA.value = split.groupA
     groupB.value = split.groupB
   }
 
   function finish() {
     clearTimers()
-    applySplit()
     isShuffling.value = false
     countdown.value = 0
     randomTime.value = formatBeijingTime(now())
@@ -85,7 +76,12 @@ export function useTeamShuffle(
     if (isShuffling.value) return false
 
     drawPlayers = toValue(players).map((player) => ({ ...player }))
-    if (drawPlayers.length < 2) return false
+    try {
+      applySplit()
+    } catch {
+      reset()
+      return false
+    }
     clearTimers()
     hasResult.value = true
     if (
@@ -98,13 +94,10 @@ export function useTeamShuffle(
     isShuffling.value = true
     countdown.value = 3
     randomTime.value = ''
-    applySplit()
-
     countdownTimer = setInterval(() => {
       countdown.value -= 1
     }, countdownStepMs)
 
-    shuffleTimer = setInterval(applySplit, tickMs)
     finishTimer = setTimeout(finish, animationMs)
 
     return true

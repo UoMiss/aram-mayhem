@@ -27,7 +27,7 @@ describe('team drawer keyboard interaction', () => {
     document.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }),
     )
-    expect(document.activeElement).toBe(wrapper.get('#copyTeamBtn').element)
+    expect(document.activeElement).toBe(wrapper.get('#randomBtn').element)
     document.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
     )

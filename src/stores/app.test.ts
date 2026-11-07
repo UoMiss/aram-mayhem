@@ -245,6 +245,7 @@ describe('gameflow store revision guard', () => {
   it('rejects older and equal revisions but accepts newer snapshots', () => {
     const app = useAppStore()
     const base = {
+      readyCheckStatus: null,
       revision: 2,
       updatedAt: 2,
       connected: true,
@@ -277,6 +278,7 @@ describe('gameflow store revision guard', () => {
       monitoring: false,
     })
     app.setGameflowSnapshot({
+      readyCheckStatus: null,
       revision: 99,
       updatedAt: 99,
       connected: false,

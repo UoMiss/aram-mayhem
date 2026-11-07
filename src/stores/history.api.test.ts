@@ -17,6 +17,25 @@ beforeEach(() => {
 afterEach(() => disposePinia(pinia))
 
 describe('real history state', () => {
+  it('keeps only the latest 20 records and replaces them on refresh', async () => {
+    const matches = Array.from({ length: 25 }, (_, index) => ({
+      ...TEST_HISTORY_MATCH,
+      id: String(index + 1),
+      createdAt: TEST_HISTORY_MATCH.createdAt + index,
+    }))
+    api.load.mockResolvedValueOnce({ source: 'real', snapshot: testHistorySnapshot(matches) })
+    const history = useHistoryStore(pinia)
+    await history.loadHistory()
+    expect(history.matchHistory).toHaveLength(20)
+    expect(history.realMatches.map((match) => match.id)).toEqual(
+      Array.from({ length: 20 }, (_, index) => String(25 - index)),
+    )
+    api.load.mockResolvedValueOnce({ source: 'real', snapshot: testHistorySnapshot() })
+    await history.loadHistory()
+    expect(history.matchHistory.map((match) => match.id)).toEqual([TEST_HISTORY_MATCH.id])
+    expect(api.load.mock.calls).toEqual([[], []])
+  })
+
   it('starts without demo records and coalesces concurrent refreshes', async () => {
     const history = useHistoryStore(pinia)
     expect(history.matchHistory).toEqual([])

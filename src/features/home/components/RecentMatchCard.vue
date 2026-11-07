@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useGameInfo } from '@/composables/useGameInfo'
 import { useI18n } from 'vue-i18n'
 import { MATCH_MODE_KEYS, MATCH_RESULT_KEYS } from '@/i18n/labels'
 import { formatMatchTime } from '@/shared/lib/history-presentation'
 import type { MatchHistoryItem } from '@/types/history'
 
-const props = defineProps<{ match: MatchHistoryItem; duration?: string }>()
+const props = defineProps<{ match: MatchHistoryItem }>()
 const emit = defineEmits<{ open: [] }>()
 const { t } = useI18n({ useScope: 'global' })
+const gameInfo = useGameInfo(
+  () => props.match.gameInfo ?? null,
+  () => props.match.accountKey,
+)
 const time = computed(() =>
   props.match.createdAt != null ? formatMatchTime(props.match.createdAt) : props.match.timeLabel,
 )
@@ -48,13 +53,15 @@ const time = computed(() =>
           {{ t(MATCH_RESULT_KEYS[match.result]) }}
         </span>
       </span>
-      <span class="block text-xs text-text-muted">{{ t(MATCH_MODE_KEYS[match.mode]) }}</span>
+      <span class="block truncate text-xs text-text-muted" :title="gameInfo.gameTypeLabel">{{
+        match.gameInfo ? gameInfo.gameTypeLabel : t(MATCH_MODE_KEYS[match.mode])
+      }}</span>
     </span>
     <span class="shrink-0 space-y-0.5 text-right tabular-nums">
       <strong class="block text-sm text-text-soft">
         {{ match.kda.kills }} / {{ match.kda.deaths }} / {{ match.kda.assists }}
       </strong>
-      <span class="block text-xs text-text-muted">{{ duration ?? match.timeLabel }}</span>
+      <span class="block text-xs text-text-muted">{{ time }}</span>
     </span>
     <i
       class="fa-solid fa-chevron-right shrink-0 text-[10px] text-brand-light"

@@ -13,15 +13,14 @@ describe('settings component interaction', () => {
     useDesktopStore(pinia).setAppVersion('1.2.3')
     const wrapper = mount(SettingsPage, { global: { plugins: [pinia, createAppI18n()] } })
     const switches = wrapper.findAll('[role="switch"]')
-    expect(switches).toHaveLength(3)
-    await switches[1]!.trigger('click')
+    expect(switches).toHaveLength(1)
+    await switches[0]!.trigger('click')
     expect(useSettingsStore(pinia).settings).toEqual({
-      autoStart: true,
-      autoRetry: false,
-      soundEffects: true,
+      autoAccept: true,
     })
-    expect(switches[1]!.attributes('aria-checked')).toBe('false')
+    expect(switches[0]!.attributes('aria-checked')).toBe('true')
     expect(wrapper.text()).toContain('v1.2.3')
+    expect(wrapper.text()).not.toMatch(/开机|自动重试|提示音效/)
     wrapper.unmount()
     disposePinia(pinia)
   })

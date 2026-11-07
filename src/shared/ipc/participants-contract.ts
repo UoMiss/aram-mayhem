@@ -9,6 +9,23 @@ const participant = object<LobbyParticipant>({
   ),
 })
 const snapshot = object<ParticipantSnapshot>({
+  completeness: (v): v is ParticipantSnapshot['completeness'] =>
+    v === 'complete' || v === 'partial' || v === 'unknown',
+  evidence: (v): v is ParticipantSnapshot['evidence'] =>
+    v === 'custom_teams' || v === 'members' || v === 'none',
+  issue: nullable((v): v is NonNullable<ParticipantSnapshot['issue']> =>
+    ['missing_teams', 'unresolved_slots', 'conflicting_roster', 'missing_context'].includes(
+      v as string,
+    ),
+  ),
+  eligibleCount: unsigned,
+  unresolvedCount: (v): v is number => unsigned(v) && v <= 400,
+  context: nullable(
+    object<NonNullable<ParticipantSnapshot['context']>>({
+      sessionKey: (v): v is string => string(v) && v.trim().length > 0 && v.length <= 512,
+      connectionGeneration: unsigned,
+    }),
+  ),
   accountKey: id,
   lobbyKey: nullable(
     (value): value is string => string(value) && value.trim().length > 0 && value.length <= 256,
@@ -28,6 +45,15 @@ const snapshot = object<ParticipantSnapshot>({
 export function isParticipantSnapshot(value: unknown): value is ParticipantSnapshot {
   return (
     snapshot(value) &&
+    value.eligibleCount === value.players.length &&
+    (value.completeness !== 'complete' ||
+      (value.status === 'custom' &&
+        value.evidence === 'custom_teams' &&
+        value.issue === null &&
+        value.unresolvedCount === 0 &&
+        value.context !== null &&
+        value.lobbyKey !== null)) &&
+    (value.status === 'custom' || value.context === null) &&
     ((value.status !== 'not_custom' && value.status !== 'no_lobby') || value.players.length === 0)
   )
 }

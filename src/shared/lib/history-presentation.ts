@@ -1,19 +1,23 @@
 import type { MatchHistoryItem, MatchMode } from '@/types/history'
 import type { LcuHistoryMatch } from '@/types/history-api'
+import { resolveGameMode } from './game-mode'
 import { getChampionImage, getChampionName } from './champions'
 
 export function matchMode(
   match: Pick<LcuHistoryMatch, 'queueId' | 'gameMode' | 'gameType'>,
 ): MatchMode {
-  if (match.gameType === 'CUSTOM_GAME' || match.queueId === 0) return 'custom'
-  // Riot's published queue metadata identifies 2400 as ARAM: Mayhem.
-  if (match.queueId === 2400) return 'hex'
-  if (match.gameMode === 'ARAM' || match.queueId === 450) return 'aram'
-  return 'other'
+  return resolveGameMode(match) ?? 'other'
 }
-export function toHistoryItem(match: LcuHistoryMatch): MatchHistoryItem {
+export function toHistoryItem(match: LcuHistoryMatch, accountKey?: string): MatchHistoryItem {
   return {
     id: match.id,
+    accountKey,
+    gameInfo: {
+      queueId: match.queueId,
+      mapId: match.mapId,
+      gameType: match.gameType,
+      gameMode: match.gameMode,
+    },
     mode: matchMode(match),
     result: match.win ? 'victory' : 'defeat',
     champion:

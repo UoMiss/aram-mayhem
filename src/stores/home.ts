@@ -1,3 +1,5 @@
+import { useGameInfo } from '@/composables/useGameInfo'
+import { resolveGameMode } from '@/shared/lib/game-mode'
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { createMockHomeProfile } from '@/mocks/home'
@@ -21,7 +23,7 @@ export const useHomeStore = defineStore('home', () => {
 
   const liveFlow = computed(() => {
     const flow = connection.gameflowSnapshot
-    return connection.isRealLcuConnected &&
+    return connection.canReadAccountData &&
       flow?.connected &&
       flow.source === 'real' &&
       !flow.simulated &&
@@ -33,14 +35,17 @@ export const useHomeStore = defineStore('home', () => {
   const lobby = computed(() =>
     liveFlow.value?.phase === 'lobby' ? (liveFlow.value.session?.lobby ?? null) : null,
   )
+  const currentMetadata = computed(() => {
+    const session = liveFlow.value?.session
+    if (!session || liveFlow.value?.phase === 'none') return null
+    return session.modeContext ?? { queueId: null, mapId: null }
+  })
+  const gameInfo = useGameInfo(currentMetadata, () => snapshot.value?.accountKey)
   const gameMode = computed<HomeGameMode | null>(() => {
-    const room = lobby.value ?? liveFlow.value?.session?.game
-    if (!room) return null
-    if (room.queueId === 2400) return 'hex'
-    if (room.queueId === 0) return 'custom'
-    if (room.queueId === 450 || room.gameMode === 'ARAM') return 'aram'
-    if (room.queueId !== null || room.gameMode) return 'other'
-    return null
+    const session = liveFlow.value?.session
+    if (!session) return null
+    const mode = session.modeContext
+    return mode ? resolveGameMode(mode) : null
   })
   const homeView = computed<HomeViewModel>(() => ({
     isConnected: connection.isConnected,
@@ -62,7 +67,7 @@ export const useHomeStore = defineStore('home', () => {
   }
   function loadHome(): Promise<void> {
     if (pending) return pending
-    if (connection.isDesktopRuntime && !connection.isRealLcuConnected) return Promise.resolve()
+    if (connection.isDesktopRuntime && !connection.canReadAccountData) return Promise.resolve()
     const request = ++generation
     isLoading.value = true
     errorCode.value = null
@@ -89,7 +94,7 @@ export const useHomeStore = defineStore('home', () => {
     return pending
   }
   watch(
-    () => connection.isRealLcuConnected,
+    () => connection.canReadAccountData,
     (connected) => {
       if (connection.isDesktopRuntime && !connected) {
         disconnectedFlowRevision = connection.gameflowSnapshot?.revision ?? -1
@@ -100,6 +105,10 @@ export const useHomeStore = defineStore('home', () => {
   )
   onScopeDispose(clearRealHome)
   return {
+    readyCheckStatus: computed(() =>
+      liveFlow.value?.phase === 'ready_check' ? liveFlow.value.readyCheckStatus : null,
+    ),
+    gameInfo,
     homeProfile,
     homeView,
     snapshot,

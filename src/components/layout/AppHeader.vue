@@ -3,10 +3,23 @@ import AppLogo from '@/components/common/AppLogo.vue'
 import { useDesktopStore } from '@/stores/desktop'
 import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connection'
+import { computed } from 'vue'
+import { CONNECTION_STATUS_KEYS } from '@/i18n/labels'
 
 const connection = useConnectionStore()
 const desktop = useDesktopStore()
 const { t } = useI18n({ useScope: 'global' })
+const statusLabel = computed(() => {
+  if (connection.isDesktopRuntime)
+    return t(CONNECTION_STATUS_KEYS[connection.lcuStatus?.status ?? 'discovering'])
+  return t(
+    connection.isConnected
+      ? 'connection.connected'
+      : connection.isConnecting
+        ? 'connection.connecting'
+        : 'connection.pending',
+  )
+})
 </script>
 
 <template>
@@ -21,14 +34,17 @@ const { t } = useI18n({ useScope: 'global' })
       </div>
     </div>
     <div
-      class="flex items-center gap-1.5 rounded-full border border-success-bright/20 bg-success-bright/10 px-2.5 py-1 text-xs text-success"
+      class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+      :class="
+        connection.isConnected
+          ? 'border-success-bright/20 bg-success-bright/10 text-success'
+          : 'border-on-solid/10 bg-surface-raised text-text-secondary'
+      "
       role="status"
       :aria-label="t('a11y.connectionStatus')"
     >
-      <span class="h-2 w-2 rounded-full bg-success-bright"></span>
-      <span>{{
-        connection.isConnected ? t('connection.connected') : t('connection.pending')
-      }}</span>
+      <span class="h-2 w-2 rounded-full bg-current" aria-hidden="true"></span>
+      <span>{{ statusLabel }}</span>
     </div>
   </header>
 </template>

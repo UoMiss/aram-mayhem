@@ -37,3 +37,6 @@ src-tauri/.env.*
 
 # 本地资料归档
 /.local-archive/
+
+# Updater signing key and its local backup (never commit)
+/.updater-signing/

@@ -3,6 +3,9 @@ use crate::lcu::discovery::{LcuClient, discover};
 use crate::lcu::error::{LcuError, LcuErrorCode};
 use crate::lcu::history::profile_identity;
 use crate::lcu::models::now_ms;
+use crate::lcu::roster_integrity::{
+    RosterCompleteness, RosterEvidence, RosterIssue, inspect_custom,
+};
 use async_trait::async_trait;
 use futures_util::{StreamExt, stream};
 use serde::Serialize;
@@ -28,12 +31,75 @@ pub enum ParticipantStatus {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ParticipantContext {
+    pub session_key: String,
+    pub connection_generation: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ParticipantSnapshot {
+    pub context: Option<ParticipantContext>,
+    pub completeness: RosterCompleteness,
+    pub evidence: RosterEvidence,
+    pub issue: Option<RosterIssue>,
+    pub unresolved_count: usize,
+    pub eligible_count: usize,
     pub account_key: String,
     pub lobby_key: Option<String>,
     pub status: ParticipantStatus,
     pub players: Vec<Participant>,
     pub updated_at: u64,
+}
+
+/// Bind the roster to the same observed native room before and after the HTTP query.
+pub fn bind_context(
+    roster: &mut ParticipantSnapshot,
+    before: &crate::lcu::gameflow::GameflowSnapshot,
+    after: &crate::lcu::gameflow::GameflowSnapshot,
+) -> Result<(), LcuError> {
+    use crate::lcu::gameflow::GameflowPhase;
+    fn stamp(flow: &crate::lcu::gameflow::GameflowSnapshot) -> Option<(&str, u64, &str)> {
+        if !flow.connected
+            || flow.simulated
+            || flow.source != crate::lcu::models::LcuSourceKind::Real
+            || flow.code.is_some()
+            || flow.phase != Some(GameflowPhase::Lobby)
+        {
+            return None;
+        }
+        let session = flow.session.as_ref()?;
+        if session.mode_context.as_ref()?.is_custom_game != Some(true) {
+            return None;
+        }
+        Some((
+            &session.session_key,
+            session.connection_generation,
+            session.lobby.as_ref()?.lobby_id.as_deref()?,
+        ))
+    }
+    let old = stamp(before);
+    let current = stamp(after);
+    if old != current {
+        return Err(LcuError::new(
+            LcuErrorCode::Cancelled,
+            "Room context changed",
+        ));
+    }
+    if roster.status == ParticipantStatus::Custom {
+        if let Some((key, generation, room)) = current
+            && roster.lobby_key.as_deref() == Some(room)
+        {
+            roster.context = Some(ParticipantContext {
+                session_key: key.into(),
+                connection_generation: generation,
+            });
+        } else {
+            roster.completeness = RosterCompleteness::Unknown;
+            roster.issue = Some(RosterIssue::MissingContext);
+        }
+    }
+    Ok(())
 }
 
 fn invalid() -> LcuError {
@@ -50,7 +116,7 @@ fn text<'a>(value: &'a Value, key: &str, max: usize) -> Option<&'a str> {
         .filter(|text| !text.is_empty() && text.len() <= max)
 }
 
-fn player_name(player: &Value) -> Option<String> {
+pub(super) fn player_name(player: &Value) -> Option<String> {
     text(player, "gameName", 512)
         .map(|name| {
             text(player, "tagLine", 128)
@@ -65,6 +131,12 @@ pub fn parse_participants(
     account_key: String,
 ) -> Result<ParticipantSnapshot, LcuError> {
     let mut snapshot = ParticipantSnapshot {
+        context: None,
+        completeness: RosterCompleteness::Unknown,
+        evidence: RosterEvidence::None,
+        issue: None,
+        unresolved_count: 0,
+        eligible_count: 0,
         account_key,
         lobby_key: None,
         status: ParticipantStatus::NoLobby,
@@ -82,42 +154,23 @@ pub fn parse_participants(
         .get("isCustom")
         .and_then(Value::as_bool)
         .ok_or_else(invalid)?;
-    let mut custom_members = Vec::new();
-    let teams = if custom {
+    if custom {
         snapshot.status = ParticipantStatus::Custom;
-        let blue = config.get("customTeam100").and_then(Value::as_array);
-        let red = config.get("customTeam200").and_then(Value::as_array);
-        match (blue, red, value.get("members").and_then(Value::as_array)) {
-            (Some(blue), Some(red), _) if !blue.is_empty() || !red.is_empty() => vec![blue, red],
-            (_, _, Some(members)) if members.len() <= 100 => {
-                custom_members.extend(
-                    members
-                        .iter()
-                        .filter(|player| {
-                            matches!(
-                                player.get("teamId").and_then(Value::as_u64),
-                                Some(100 | 200)
-                            ) || player.get("isSpectator").and_then(Value::as_bool) == Some(false)
-                        })
-                        .cloned(),
-                );
-                vec![&custom_members]
-            }
-            (Some(blue), Some(red), None) => vec![blue, red],
-            _ => return Err(invalid()),
-        }
-    } else if let Some(members) = value.get("members") {
+        snapshot.lobby_key = crate::lcu::lobby::lobby_key(value);
+        inspect_custom(value, &mut snapshot)?;
+        return Ok(snapshot);
+    }
+    let teams = if let Some(members) = value.get("members") {
         snapshot.status = ParticipantStatus::Party;
         vec![members.as_array().ok_or_else(invalid)?]
     } else {
         snapshot.status = ParticipantStatus::NotCustom;
         return Ok(snapshot);
     };
-    snapshot.lobby_key = text(value, "lobbyId", 256)
-        .or_else(|| text(value, "multiUserChatId", 256))
-        .or_else(|| text(value, "partyId", 256))
-        .map(str::to_string);
+    snapshot.lobby_key = crate::lcu::lobby::lobby_key(value);
+    snapshot.evidence = RosterEvidence::Members;
     snapshot.players = collect_players(teams, false)?;
+    snapshot.eligible_count = snapshot.players.len();
     Ok(snapshot)
 }
 
@@ -174,6 +227,9 @@ fn collect_players(teams: Vec<&Vec<Value>>, selection: bool) -> Result<Vec<Parti
 
 #[async_trait]
 pub trait ParticipantSource: Send + Sync {
+    async fn verify_client(&self) -> Result<(), LcuError> {
+        Ok(())
+    }
     async fn profile(&self) -> Result<Value, LcuError>;
     async fn lobby(&self) -> Result<Option<Value>, LcuError>;
     async fn champ_select(&self) -> Result<Option<Value>, LcuError> {
@@ -204,6 +260,12 @@ pub async fn load_participants(
             .filter_map(|key| selection.get(key).and_then(Value::as_array))
             .collect();
         ParticipantSnapshot {
+            context: None,
+            completeness: RosterCompleteness::Unknown,
+            evidence: RosterEvidence::None,
+            issue: None,
+            unresolved_count: 0,
+            eligible_count: 0,
             account_key: identity.to_string(),
             lobby_key: selection
                 .get("gameId")
@@ -217,6 +279,7 @@ pub async fn load_participants(
     } else {
         parse_participants(lobby.as_ref(), identity.to_string())?
     };
+    snapshot.eligible_count = snapshot.players.len();
     for player in &mut snapshot.players {
         if player.id == identity && player.name.is_none() {
             player.name = player_name(&before);
@@ -238,6 +301,24 @@ pub async fn load_participants(
         })
         .await;
     }
+    // Name resolution can take time: re-read the room and its membership afterwards.
+    if lobby.is_some() {
+        let latest = source.lobby().await?;
+        let check = parse_participants(latest.as_ref(), identity.to_string())?;
+        if snapshot.lobby_key != check.lobby_key
+            || snapshot.status != check.status
+            || snapshot.completeness != check.completeness
+            || snapshot.issue != check.issue
+            || snapshot.players.iter().map(|p| &p.id).collect::<Vec<_>>()
+                != check.players.iter().map(|p| &p.id).collect::<Vec<_>>()
+        {
+            return Err(LcuError::new(
+                LcuErrorCode::Cancelled,
+                "Room changed during participant query",
+            ));
+        }
+    }
+    source.verify_client().await?;
     let after = source.profile().await?;
     if identity != profile_identity(&after)? {
         return Err(LcuError::new(
@@ -275,6 +356,15 @@ impl SystemParticipantSource {
 }
 #[async_trait]
 impl ParticipantSource for SystemParticipantSource {
+    async fn verify_client(&self) -> Result<(), LcuError> {
+        if discover()?.as_ref() != Some(&self.client) {
+            return Err(LcuError::new(
+                LcuErrorCode::Cancelled,
+                "Client changed during participant query",
+            ));
+        }
+        Ok(())
+    }
     async fn profile(&self) -> Result<Value, LcuError> {
         self.http
             .get_json_optional(&self.client, "/lol-summoner/v1/current-summoner")
@@ -513,5 +603,100 @@ mod tests {
     #[test]
     fn unsupported_platform_stops_before_network() {
         assert!(SystemParticipantSource::connect().is_err());
+    }
+}
+
+#[cfg(test)]
+mod binding_tests {
+    use super::*;
+    use crate::lcu::{
+        gameflow::{GameflowMachine, GameflowPhase, GameflowReading, GameflowTransport},
+        lobby::parse_lobby,
+        models::LcuSourceKind,
+    };
+    use serde_json::json;
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+    fn room(id: &str) -> Value {
+        json!({"lobbyId":id,"gameConfig":{"isCustom":true,"customTeam100":[{"puuid":"p1","isBot":false}],"customTeam200":[{"puuid":"p2","isBot":false}]}})
+    }
+    fn flow() -> crate::lcu::gameflow::GameflowSnapshot {
+        let mut machine = GameflowMachine::new(LcuSourceKind::Real, false);
+        machine
+            .observe(
+                1,
+                GameflowReading {
+                    phase: GameflowPhase::Lobby,
+                    raw_phase: "Lobby".into(),
+                    lobby: Some(parse_lobby(&room("r1")).unwrap()),
+                    champion_select: None,
+                    game_id: None,
+                    game: None,
+                },
+                GameflowTransport::Polling,
+            )
+            .current
+    }
+    #[test]
+    fn binds_only_a_stable_custom_room_and_generation() {
+        let before = flow();
+        let mut roster = parse_participants(Some(&room("r1")), "self".into()).unwrap();
+        bind_context(&mut roster, &before, &before).unwrap();
+        assert_eq!(
+            roster.context.as_ref().unwrap().session_key,
+            before.session.as_ref().unwrap().session_key
+        );
+        for kind in 0..4 {
+            let mut after = before.clone();
+            match kind {
+                0 => after.session.as_mut().unwrap().session_key = "new-session".into(),
+                1 => after.session.as_mut().unwrap().connection_generation = 2,
+                2 => after.phase = Some(GameflowPhase::ChampSelect),
+                _ => after.connected = false,
+            }
+            assert!(bind_context(&mut roster, &before, &after).is_err());
+        }
+        let mut missing = before.clone();
+        missing
+            .session
+            .as_mut()
+            .unwrap()
+            .lobby
+            .as_mut()
+            .unwrap()
+            .lobby_id = None;
+        roster.context = None;
+        bind_context(&mut roster, &missing, &missing).unwrap();
+        assert_eq!(roster.completeness, RosterCompleteness::Unknown);
+        assert!(roster.context.is_none());
+    }
+    struct ChangingRoom(Mutex<VecDeque<Value>>);
+    #[async_trait]
+    impl ParticipantSource for ChangingRoom {
+        async fn profile(&self) -> Result<Value, LcuError> {
+            Ok(json!({"puuid":"self"}))
+        }
+        async fn lobby(&self) -> Result<Option<Value>, LcuError> {
+            Ok(self.0.lock().unwrap().pop_front())
+        }
+    }
+    #[tokio::test]
+    async fn rejects_same_account_room_change_during_name_resolution() {
+        let source = ChangingRoom(Mutex::new([room("r1"), room("r2")].into()));
+        assert_eq!(
+            load_participants(&source).await.unwrap_err().code,
+            "cancelled"
+        );
+    }
+    #[tokio::test]
+    async fn rejects_membership_change_during_the_same_room_query() {
+        let first = room("r1");
+        let mut second = first.clone();
+        second["gameConfig"]["customTeam200"][0]["puuid"] = json!("new-player");
+        let source = ChangingRoom(Mutex::new([first, second].into()));
+        assert_eq!(
+            load_participants(&source).await.unwrap_err().code,
+            "cancelled"
+        );
     }
 }

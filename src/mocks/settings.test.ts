@@ -2,23 +2,21 @@ import { describe, expect, it } from 'vitest'
 import { createDefaultSettings, SETTINGS_OPTIONS } from './settings'
 
 describe('settings mock', () => {
-  it('defaults all three settings to true', () => {
+  it('defaults automatic acceptance off', () => {
     expect(createDefaultSettings()).toEqual({
-      autoStart: true,
-      autoRetry: true,
-      soundEffects: true,
+      autoAccept: false,
     })
   })
 
   it('returns an independent default object each time', () => {
     const first = createDefaultSettings()
     const second = createDefaultSettings()
-    first.autoStart = false
+    first.autoAccept = true
 
-    expect(second.autoStart).toBe(true)
+    expect(second.autoAccept).toBe(false)
   })
 
-  it('keeps the original setting keys', () => {
-    expect(SETTINGS_OPTIONS).toEqual(['autoStart', 'autoRetry', 'soundEffects'])
+  it('only exposes automatic acceptance', () => {
+    expect(SETTINGS_OPTIONS).toEqual(['autoAccept'])
   })
 })

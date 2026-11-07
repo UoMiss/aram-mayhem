@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ARAM Mayhem",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.arammayhem.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -40,6 +40,17 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEyODcyQTY4RUZDNjE1REMKUldUY0ZjYnZhQ3FIb2pyTjV6SFRnZFA0citVb2o2aWVqVWU5VjBsUE1xU09IZGNmS29UbFlMbCsK",
+      "endpoints": ["https://github.com/UoMiss/aram-mayhem/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      },
+      "requireSignedVersion": true
+    }
   }
 }

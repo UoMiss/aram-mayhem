@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useGameInfo } from '@/composables/useGameInfo'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import RedPacketNotice from '@/features/match-detail/components/RedPacketNotice.vue'
@@ -12,8 +13,8 @@ import { useConnectionStore } from '@/stores/connection'
 import { useHistoryStore } from '@/stores/history'
 import { useRulesStore } from '@/stores/rules'
 import { useSettlementStore } from '@/stores/settlement'
-import { MATCH_MODE_KEYS, SCORE_RULE_NAME_KEYS } from '@/i18n/labels'
-import { formatDuration, matchMode } from '@/shared/lib/history-presentation'
+import { SCORE_RULE_NAME_KEYS } from '@/i18n/labels'
+import { formatDuration } from '@/shared/lib/history-presentation'
 import { redPacketSelection, settlementPlayers } from './settlement-presentation'
 import type { SettlementRequest } from '@/types/settlement-api'
 import type { SettlementLayout } from '@/types/match-detail'
@@ -38,55 +39,81 @@ const request = computed<SettlementRequest | null>(() =>
   target.value ? { ...target.value, rule: rules.currentRule } : null,
 )
 const canLoad = computed(
-  () => connection.isRealLcuConnected && active.value && request.value !== null,
+  () => connection.canReadAccountData && active.value && request.value !== null,
 )
+const isCurrentPostGame = computed(() => {
+  const flow = connection.gameflowSnapshot
+  return (
+    canLoad.value &&
+    flow?.source === 'real' &&
+    !flow.simulated &&
+    flow.connected &&
+    !flow.code &&
+    flow.session?.gameId === target.value?.gameId &&
+    flow.phase === flow.session?.phase &&
+    ['waiting_for_stats', 'pre_end_of_game', 'end_of_game'].includes(flow.session?.phase ?? '')
+  )
+})
+const retryScope = computed(() => (canLoad.value ? JSON.stringify(request.value) : null))
+const retries = ref(0)
+const MAX_AUTO_RETRIES = 4
+const canAutoRetry = computed(
+  () =>
+    isCurrentPostGame.value &&
+    (settlement.status === 'pending' ||
+      (settlement.status === 'error' &&
+        ['lcu.timeout', 'lcu.connection_refused'].includes(settlement.errorCode ?? ''))),
+)
+function loadCurrent() {
+  if (canLoad.value && request.value) void settlement.load(request.value, !!isCurrentPostGame.value)
+}
 function reload() {
-  if (canLoad.value && request.value) void settlement.load(request.value)
+  retries.value = 0
+  loadCurrent()
 }
 onMounted(() => {
+  watch(isCurrentPostGame, (value) => settlement.setPostGameContext(!!value), {
+    immediate: true,
+    flush: 'sync',
+  })
   watch(
-    [canLoad, request],
+    retryScope,
     () => {
       if (!connection.isDesktopRuntime) return
-      if (canLoad.value) reload()
+      retries.value = 0
+      if (canLoad.value) loadCurrent()
       else settlement.clear()
     },
-    { immediate: true },
+    { immediate: true, flush: 'sync' },
   )
-  let retryGame: string | null = null
-  let retries = 0
   watch(
-    () => [history.liveSettlement?.gameId, settlement.errorCode, canLoad.value] as const,
-    ([gameId, error, canRetry], _, onCleanup) => {
-      if (gameId !== retryGame) {
-        retryGame = gameId ?? null
-        retries = 0
-      }
-      if (
-        !gameId ||
-        !canRetry ||
-        !error ||
-        retries >= 4 ||
-        ![
-          'lcu.http_status',
-          'lcu.invalid_response',
-          'lcu.timeout',
-          'lcu.connection_refused',
-          'lcu.settlement_failed',
-        ].includes(error)
-      )
-        return
+    [retryScope, canAutoRetry, () => settlement.status, () => settlement.errorCode],
+    ([scope, retryable], _, onCleanup) => {
+      if (!scope || !retryable || retries.value >= MAX_AUTO_RETRIES) return
       const timer = setTimeout(() => {
-        retries++
-        reload()
+        if (retryScope.value !== scope || !canAutoRetry.value) return
+        retries.value++
+        loadCurrent()
       }, 2000)
       onCleanup(() => clearTimeout(timer))
     },
+    { flush: 'sync' },
   )
 })
+const recoveryText = computed(() => {
+  if (canAutoRetry.value)
+    return t(
+      retries.value >= MAX_AUTO_RETRIES
+        ? 'matchDetail.retryExhausted'
+        : 'matchDetail.retryScheduled',
+    )
+  if (live.value?.rankingStatus === 'missing_damage') return t('matchDetail.damageUnavailable')
+  return null
+})
 const hasData = computed(() => live.value !== null || fixture.value !== null)
+const gameInfo = useGameInfo(live, () => live.value?.accountKey)
 const queueLabel = computed(() =>
-  live.value ? t(MATCH_MODE_KEYS[matchMode(live.value)]) : (fixture.value?.queueLabel ?? ''),
+  live.value ? gameInfo.value.gameTypeLabel : (fixture.value?.queueLabel ?? ''),
 )
 const duration = computed(() =>
   live.value ? formatDuration(live.value.durationSeconds) : (fixture.value?.duration ?? ''),
@@ -116,6 +143,10 @@ const rankNote = computed(() => {
 })
 const errorText = computed(() => {
   switch (settlement.errorCode) {
+    case 'lcu.settlement_pending':
+      return t('matchDetail.pending')
+    case 'lcu.settlement_unavailable':
+      return t('matchDetail.unavailable')
     case 'lcu.not_logged_in':
       return t('history.errors.login')
     case 'lcu.account_changed':
@@ -163,11 +194,17 @@ const globalPlayers = computed(() =>
     .sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0)),
 )
 let copyGeneration = 0
-watch([active, live], () => {
-  copyGeneration++
-  isCopying.value = false
-})
+let disposed = false
+watch(
+  [active, live, retryScope, layout, () => connection.canReadAccountData],
+  () => {
+    copyGeneration++
+    isCopying.value = false
+  },
+  { flush: 'sync' },
+)
 onUnmounted(() => {
+  disposed = true
   copyGeneration++
   settlement.clear()
 })
@@ -189,18 +226,40 @@ async function copyScreenshot() {
   }
 
   const token = ++copyGeneration
+  const captured = live.value
+  const scope = retryScope.value
+  const capturedLayout = layout.value
+  function isCurrent() {
+    return (
+      !disposed &&
+      token === copyGeneration &&
+      active.value &&
+      hasData.value &&
+      screenshotRef.value === target &&
+      live.value === captured &&
+      layout.value === capturedLayout &&
+      (!connection.isDesktopRuntime ||
+        (canLoad.value &&
+          !settlement.isLoading &&
+          retryScope.value === scope &&
+          captured !== null &&
+          captured.accountKey === request.value?.accountKey &&
+          captured.id === request.value?.gameId))
+    )
+  }
   isCopying.value = true
   try {
     const result = await captureAndDeliverScreenshot(target, {
       fileNamePrefix: t('matchDetail.fileNamePrefix'),
+      beforeDeliver: isCurrent,
     })
-    if (token !== copyGeneration) return
+    if (!isCurrent()) return
     feedback.notify(
       result.status === 'copied' ? t('toast.screenshotCopied') : t('toast.screenshotDownloaded'),
       'success',
     )
   } catch {
-    if (token === copyGeneration) feedback.notify(t('toast.screenshotFailed'), 'error')
+    if (isCurrent()) feedback.notify(t('toast.screenshotFailed'), 'error')
   } finally {
     if (token === copyGeneration) isCopying.value = false
   }
@@ -245,16 +304,30 @@ async function copyScreenshot() {
             </span>
             <span aria-hidden="true">{{ compactRuleLabel }}</span>
           </span>
-          <span class="shrink-0">
-            <span class="sr-only">{{ t('history.mode') }}</span
+          <span class="max-w-full truncate" :title="queueLabel">
+            <span class="sr-only">{{ t('gameInfo.gameType') }}</span
             >{{ queueLabel }}
           </span>
-          <span class="shrink-0 tabular-nums">
-            {{ t('history.duration', { duration }) }}
+          <span
+            class="inline-flex shrink-0 items-center gap-1.5 tabular-nums"
+            role="img"
+            :aria-label="t('history.duration', { duration })"
+            :title="t('history.duration', { duration })"
+          >
+            <i class="fa-regular fa-clock" aria-hidden="true"></i>
+            <span aria-hidden="true">{{ duration }}</span>
           </span>
         </div>
       </header>
 
+      <p
+        v-if="recoveryText"
+        id="settlement-recovery-status"
+        role="status"
+        class="text-center text-sm text-text-muted"
+      >
+        {{ recoveryText }}
+      </p>
       <p
         v-if="connection.isDesktopRuntime && settlement.isLoading"
         role="status"
@@ -264,7 +337,7 @@ async function copyScreenshot() {
       </p>
       <div
         v-else-if="connection.isDesktopRuntime && settlement.errorCode"
-        role="alert"
+        :role="settlement.status === 'pending' ? 'status' : 'alert'"
         class="glass-card space-y-3 rounded-xl p-5 text-center"
       >
         <p class="text-sm text-danger-light">{{ errorText }}</p>
@@ -287,16 +360,24 @@ async function copyScreenshot() {
         </button>
       </div>
       <p v-else-if="!hasData" role="status" class="py-12 text-center text-sm text-text-muted">
-        {{ t(connection.isRealLcuConnected ? 'matchDetail.selectMatch' : 'history.connectFirst') }}
+        {{ t(connection.canReadAccountData ? 'matchDetail.selectMatch' : 'history.connectFirst') }}
       </p>
       <template v-else>
         <button
-          v-if="live?.rankingStatus === 'missing_friends'"
+          v-if="
+            live?.rankingStatus === 'missing_friends' || live?.rankingStatus === 'missing_damage'
+          "
           type="button"
           class="rounded-lg border border-on-solid/10 px-3 py-1.5 text-xs text-brand-light"
           @click="reload"
         >
-          {{ t('matchDetail.retryFriends') }}
+          {{
+            t(
+              live?.rankingStatus === 'missing_friends'
+                ? 'matchDetail.retryFriends'
+                : 'history.retry',
+            )
+          }}
         </button>
         <div
           id="screenshot-area"

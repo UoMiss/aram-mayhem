@@ -82,4 +82,84 @@ describe('real home state', () => {
     expect(home.snapshot?.accountKey).toBe('account-2')
     expect(home.homeView.summonerName).toBe('新账号')
   })
+  it('never falls back to lobby or game and clears on account invalidation while LCU remains connected', () => {
+    const home = useHomeStore()
+    const connection = useConnectionStore()
+    const base = homeFlow()
+    connection.setGameflowSnapshot(base)
+    expect(home.homeView.gameMode).toBe('hex')
+    connection.setGameflowSnapshot(
+      homeFlow({
+        revision: 2,
+        session: { ...base.session!, game: base.session!.lobby, modeContext: null },
+      }),
+    )
+    expect(home.homeView.gameMode).toBeNull()
+    expect(home.gameInfo.gameTypeLabel).toBe('待客户端确认')
+    connection.setGameflowSnapshot(
+      homeFlow({
+        revision: 3,
+        connected: false,
+        phase: null,
+        session: null,
+        code: 'account_changed',
+      }),
+    )
+    expect(connection.isRealLcuConnected).toBe(true)
+    expect(home.homeView.gameMode).toBeNull()
+    expect(home.gameInfo.mapLabel).toBe('—')
+    connection.setGameflowSnapshot(
+      homeFlow({
+        revision: 4,
+        session: {
+          ...base.session!,
+          sessionKey: 'new-account-session',
+          connectionGeneration: 2,
+          modeContext: null,
+          lobby: null,
+        },
+      }),
+    )
+    expect(home.homeView.gameMode).toBeNull()
+    expect(home.gameInfo.gameTypeLabel).toBe('待客户端确认')
+  })
+
+  it('uses explicit session mode across stages and clears it on a new unknown session', () => {
+    const home = useHomeStore()
+    const connection = useConnectionStore()
+    const session = homeFlow().session!
+    connection.setGameflowSnapshot(
+      homeFlow({
+        phase: 'matchmaking',
+        session: { ...session, phase: 'matchmaking', lobby: null },
+      }),
+    )
+    expect(home.homeView.gameMode).toBe('hex')
+    connection.setGameflowSnapshot(
+      homeFlow({
+        revision: 2,
+        phase: 'in_progress',
+        session: {
+          ...session,
+          phase: 'in_progress',
+          lobby: null,
+          modeContext: {
+            mapId: null,
+            queueId: 450,
+            gameMode: 'ARAM',
+            isCustomGame: false,
+            source: 'gameflow',
+          },
+        },
+      }),
+    )
+    expect(home.homeView.gameMode).toBe('aram')
+    connection.setGameflowSnapshot(
+      homeFlow({
+        revision: 3,
+        session: { ...session, sessionKey: 'new', modeContext: null },
+      }),
+    )
+    expect(home.homeView.gameMode).toBeNull()
+  })
 })

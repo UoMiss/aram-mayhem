@@ -116,11 +116,28 @@ impl LcuHttpClient {
         path: &str,
     ) -> Result<Option<serde_json::Value>, LcuError> {
         let response = self.send_read(endpoint, path).await?;
-        if response.status() == StatusCode::NOT_FOUND || response.status() == StatusCode::NO_CONTENT
-        {
-            return Ok(None);
+        parse_optional_json_response(response).await
+    }
+
+    /// The only write supported by this client: accept the current ready check.
+    pub async fn accept_ready_check(&self, endpoint: &LcuClient) -> Result<(), LcuError> {
+        let response = self
+            .client
+            .post(format!(
+                "{}/lol-matchmaking/v1/ready-check/accept",
+                endpoint.endpoint()
+            ))
+            .basic_auth("riot", Some(endpoint.password()))
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
+        if response.status().is_success() {
+            return Ok(());
         }
-        parse_json_response(response).await.map(Some)
+        Err(LcuError::new(
+            LcuErrorCode::HttpStatus,
+            "Ready-check acceptance failed",
+        ))
     }
 
     async fn send_read(
@@ -160,6 +177,15 @@ impl LcuHttpClient {
     }
 }
 
+async fn parse_optional_json_response(
+    response: reqwest::Response,
+) -> Result<Option<serde_json::Value>, LcuError> {
+    if response.status() == StatusCode::NOT_FOUND || response.status() == StatusCode::NO_CONTENT {
+        return Ok(None);
+    }
+    parse_json_response(response).await.map(Some)
+}
+
 async fn parse_json_response(response: reqwest::Response) -> Result<serde_json::Value, LcuError> {
     response.json().await.map_err(|_| {
         LcuError::new(
@@ -190,6 +216,39 @@ fn map_reqwest_error(error: reqwest::Error) -> LcuError {
 mod tests {
     use super::*;
     use crate::lcu::discovery::LcuLockfile;
+
+    #[tokio::test]
+    async fn optional_detail_404_and_204_are_absence_not_json_errors_or_zero_stats() {
+        for status in [404, 204] {
+            let response = tauri::http::Response::builder()
+                .status(status)
+                .body("".to_string())
+                .unwrap();
+            assert_eq!(
+                parse_optional_json_response(response.into()).await.unwrap(),
+                None
+            );
+        }
+        let response = tauri::http::Response::builder()
+            .status(200)
+            .body("{\"gameId\":42}".to_string())
+            .unwrap();
+        assert_eq!(
+            parse_optional_json_response(response.into()).await.unwrap(),
+            Some(serde_json::json!({"gameId":42}))
+        );
+        let malformed = tauri::http::Response::builder()
+            .status(200)
+            .body("not json".to_string())
+            .unwrap();
+        assert_eq!(
+            parse_optional_json_response(malformed.into())
+                .await
+                .unwrap_err()
+                .code,
+            "invalid_response"
+        );
+    }
 
     fn client() -> LcuClient {
         LcuClient::from_lockfile(

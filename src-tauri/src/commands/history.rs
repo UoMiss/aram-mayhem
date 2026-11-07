@@ -1,11 +1,10 @@
 use crate::lcu::error::{LcuError, LcuErrorCode};
-use crate::lcu::history::{MatchHistorySnapshot, SystemHistorySource, load_history_page};
+use crate::lcu::history::{MatchHistorySnapshot, SystemHistorySource, load_history};
 
-/// Read-only current-account query, up to 20 records per page. No arbitrary player or URL input.
+/// Read-only current-account query, only the latest 20 records. No arbitrary player or URL input.
 #[tauri::command]
 pub async fn lcu_get_match_history(
     window: tauri::WebviewWindow,
-    offset: Option<u32>,
 ) -> Result<MatchHistorySnapshot, LcuError> {
     if window.label() != "main" {
         return Err(LcuError::new(
@@ -13,5 +12,5 @@ pub async fn lcu_get_match_history(
             "History query is restricted to the main window",
         ));
     }
-    load_history_page(&SystemHistorySource::connect()?, offset.unwrap_or(0)).await
+    load_history(&SystemHistorySource::connect()?).await
 }

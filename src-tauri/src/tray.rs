@@ -12,12 +12,12 @@ struct TrayStatus {
 fn status_label(status: LcuStatus) -> &'static str {
     match status {
         LcuStatus::UnsupportedPlatform => "当前平台不支持连接",
-        LcuStatus::NotRunning => "未检测到英雄联盟客户端",
-        LcuStatus::Discovering => "正在检测客户端",
-        LcuStatus::Connecting => "正在连接",
+        LcuStatus::NotRunning => "等待客户端启动",
+        LcuStatus::Discovering => "检测中",
+        LcuStatus::Connecting => "连接中",
         LcuStatus::Connected => "已连接",
         LcuStatus::Disconnected => "连接已断开",
-        LcuStatus::Reconnecting => "正在重新连接",
+        LcuStatus::Reconnecting => "连接中",
         LcuStatus::Error => "连接失败",
     }
 }

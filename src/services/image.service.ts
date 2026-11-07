@@ -4,6 +4,8 @@ export interface ScreenshotOptions {
   scale?: number
   backgroundColor?: string
   fileNamePrefix?: string
+  /** Revalidate immediately before each irreversible delivery attempt. */
+  beforeDeliver?: () => boolean | Promise<boolean>
 }
 
 export interface ScreenshotDelivery {
@@ -138,10 +140,23 @@ export async function captureAndDeliverScreenshot(
 ): Promise<ScreenshotDelivery> {
   const blob = await captureElementToBlob(element, options)
 
+  function assertCurrent(): void | Promise<void> {
+    const valid = options.beforeDeliver?.()
+    function check(value: boolean | undefined) {
+      if (value === false) throw new ScreenshotError('截图结果已失效')
+    }
+    if (typeof valid === 'boolean' || valid === undefined) return check(valid)
+    return valid.then(check)
+  }
+  // Synchronous page guards must not yield between validation and the delivery call.
+  const clipboardCheck = assertCurrent()
+  if (clipboardCheck) await clipboardCheck
   if (await copyPngToClipboard(blob)) {
     return { status: 'copied', blob }
   }
 
+  const downloadCheck = assertCurrent()
+  if (downloadCheck) await downloadCheck
   const fileName = buildFileName(options.fileNamePrefix)
   try {
     downloadPng(blob, fileName)

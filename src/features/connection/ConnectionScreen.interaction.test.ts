@@ -4,7 +4,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, disposePinia } from 'pinia'
 import { createAppI18n } from '@/i18n'
 import { useConnectionStore } from '@/stores/connection'
-import { useSettingsStore } from '@/stores/settings'
 import type { LcuConnectionStatus, LcuStatusDto } from '@/types/lcu'
 
 const runtime = vi.hoisted(() => ({ desktop: true, start: vi.fn() }))
@@ -50,12 +49,12 @@ afterEach(() => {
 
 describe('connection page', () => {
   it.each([
-    ['not_running', '未检测到英雄联盟客户端'],
-    ['discovering', '正在检测客户端...'],
-    ['connecting', '连接中...'],
-    ['reconnecting', '连接中...'],
-    ['disconnected', 'LCU 连接已断开'],
-    ['error', 'LCU 连接失败'],
+    ['not_running', '等待客户端启动'],
+    ['discovering', '检测中'],
+    ['connecting', '连接中'],
+    ['reconnecting', '连接中'],
+    ['disconnected', '连接已断开'],
+    ['error', '连接失败'],
   ] as const)('displays %s from the native snapshot', (value, label) => {
     expect(render(status(value)).get('#connection-detail-panel [role="status"]').text()).toContain(
       label,
@@ -98,11 +97,9 @@ describe('connection page', () => {
     expect(page.get('#connection-detail-panel').text()).toContain('请在 Windows 电脑上运行助手')
   })
 
-  it('points to the tray menu when automatic retry is disabled', () => {
-    useSettingsStore(pinia).setSetting('autoRetry', false)
+  it('continues automatic client discovery after disconnect', () => {
     const page = render(status('disconnected', 'client_exited'))
-    expect(page.text()).toContain('任务栏通知区域')
-    expect(page.text()).toContain('重新检测客户端')
+    expect(page.text()).toContain('客户端启动后会自动检测并连接')
     expect(page.find('button').exists()).toBe(false)
   })
 

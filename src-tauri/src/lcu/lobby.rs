@@ -12,10 +12,7 @@ pub fn parse_lobby(value: &Value) -> Result<LobbySnapshot, LcuError> {
         ));
     }
 
-    let lobby_id = value
-        .get("lobbyId")
-        .and_then(value_as_string)
-        .filter(|value| !value.is_empty());
+    let lobby_id = lobby_key(value);
     let queue_id = value.pointer("/gameConfig/queueId").and_then(Value::as_i64);
     let game_mode = value
         .pointer("/gameConfig/gameMode")
@@ -29,10 +26,26 @@ pub fn parse_lobby(value: &Value) -> Result<LobbySnapshot, LcuError> {
     Ok(LobbySnapshot {
         lobby_id,
         queue_id,
+        map_id: crate::lcu::metadata::map_id(value.pointer("/gameConfig/mapId")),
         game_mode,
+        is_custom_game: value
+            .pointer("/gameConfig/isCustom")
+            .and_then(Value::as_bool),
         member_count,
         updated_at: now_ms(),
     })
+}
+
+pub fn lobby_key(value: &Value) -> Option<String> {
+    ["lobbyId", "multiUserChatId", "partyId"]
+        .iter()
+        .find_map(|key| {
+            value
+                .get(key)
+                .and_then(value_as_string)
+                .map(|s| s.trim().to_owned())
+                .filter(|s| !s.is_empty() && s != "0" && s.len() <= 256)
+        })
 }
 
 fn value_as_string(value: &Value) -> Option<String> {
@@ -47,6 +60,32 @@ fn value_as_string(value: &Value) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn actual_map_is_optional_validated_and_part_of_changes() {
+        let value = json!({"gameConfig":{"queueId":2400,"mapId":11}});
+        assert_eq!(parse_lobby(&value).unwrap().map_id, Some(11));
+        for map in [
+            json!(0),
+            json!(-1),
+            json!("12"),
+            json!({}),
+            json!(9007199254740992_u64),
+        ] {
+            assert_eq!(
+                parse_lobby(&json!({"gameConfig":{"queueId":2400,"mapId":map}}))
+                    .unwrap()
+                    .map_id,
+                None
+            );
+        }
+        assert_eq!(
+            parse_lobby(&json!({"gameConfig":{"queueId":2400}}))
+                .unwrap()
+                .map_id,
+            None
+        );
+    }
 
     #[test]
     fn parses_lobby_count_and_optional_fields_without_defaults() {

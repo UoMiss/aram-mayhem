@@ -15,6 +15,8 @@ export const useConnectionStore = defineStore('connection', () => {
   const lcuStatus = ref<LcuStatusDto | null>(null)
   const gameflowSnapshot = ref<GameflowSnapshot | null>(null)
   const lcuBridgeError = ref<string | null>(null)
+  // Once invalidated, only a healthy real gameflow observation can restore account reads.
+  const isAccountInvalidated = ref(false)
 
   const isDesktopRuntime = computed(() => isTauri())
   const isRealLcuConnected = computed(
@@ -24,6 +26,7 @@ export const useConnectionStore = defineStore('connection', () => {
       lcuStatus.value.simulated === false &&
       lcuStatus.value.status === 'connected',
   )
+  const canReadAccountData = computed(() => isRealLcuConnected.value && !isAccountInvalidated.value)
   const isConnected = computed(() =>
     isDesktopRuntime.value ? isRealLcuConnected.value : connectionPhase.value === 'connected',
   )
@@ -85,6 +88,10 @@ export const useConnectionStore = defineStore('connection', () => {
       return
     }
     gameflowSnapshot.value = snapshot
+    if (snapshot.source === 'real' && !snapshot.simulated) {
+      if (snapshot.code === 'account_changed') isAccountInvalidated.value = true
+      else if (snapshot.connected && !snapshot.code) isAccountInvalidated.value = false
+    }
   }
 
   onScopeDispose(() => {
@@ -97,6 +104,8 @@ export const useConnectionStore = defineStore('connection', () => {
     lcuBridgeError,
     isDesktopRuntime,
     isRealLcuConnected,
+    isAccountInvalidated,
+    canReadAccountData,
     isConnected,
     isConnecting,
     connect,

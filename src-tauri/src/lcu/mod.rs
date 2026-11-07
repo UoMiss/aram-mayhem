@@ -18,3 +18,9 @@ pub const LCU_STATUS_EVENT: &str = "lcu://connection-status";
 pub mod home;
 pub mod participants;
 pub mod settlement;
+
+pub mod metadata;
+
+pub mod auto_accept;
+
+pub mod roster_integrity;

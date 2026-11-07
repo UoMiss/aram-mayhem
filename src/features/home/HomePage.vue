@@ -35,8 +35,6 @@ const roomPhase = computed(() => home.homeView.roomPhase)
 const roomPhaseLabel = computed(() => {
   const phase = roomPhase.value
   if (phase === 'none') return t('home.noMatch')
-  if (phase === 'waiting_for_stats' || phase === 'pre_end_of_game')
-    return t('home.readingSettlement')
   return phase ? t(HOME_ROOM_PHASE_KEYS[phase]) : t('home.statusUnavailable')
 })
 const gameModeLabel = computed(() =>
@@ -153,19 +151,33 @@ function openRecent(matchId: string) {
         <p class="mt-2 text-3xl font-bold tracking-wide text-on-solid" role="status">
           {{ roomPhaseLabel }}
         </p>
+        <p
+          v-if="home.readyCheckStatus"
+          class="mt-1 text-xs text-text-secondary"
+          role="status"
+          aria-live="polite"
+        >
+          {{ t(`gameflow.readyCheck.${home.readyCheckStatus}`) }}
+        </p>
       </div>
 
       <dl class="divide-y divide-on-solid/5 border-t border-brand/20 px-4 min-[400px]:px-5">
-        <div
-          v-if="gameModeLabel"
-          class="flex items-baseline justify-between gap-3 py-2 min-[400px]:py-2.5"
-        >
+        <div class="flex items-baseline justify-between gap-3 py-2 min-[400px]:py-2.5">
+          <dt class="flex shrink-0 items-center gap-2 text-xs text-text-muted">
+            <i class="fa-solid fa-map w-4 text-center text-brand-light" aria-hidden="true"></i>
+            {{ t('gameInfo.map') }}
+          </dt>
+          <dd class="min-w-0 break-words text-right text-sm font-semibold text-text-soft">
+            {{ home.gameInfo.mapLabel }}
+          </dd>
+        </div>
+        <div class="flex items-baseline justify-between gap-3 py-2 min-[400px]:py-2.5">
           <dt class="flex shrink-0 items-center gap-2 text-xs text-text-muted">
             <i class="fa-solid fa-gamepad w-4 text-center text-brand-light" aria-hidden="true"></i>
-            {{ t('history.mode') }}
+            {{ t('gameInfo.gameType') }}
           </dt>
-          <dd class="min-w-0 text-right text-sm font-semibold text-text-soft">
-            {{ gameModeLabel }}
+          <dd class="min-w-0 break-words text-right text-sm font-semibold text-text-soft">
+            {{ connection.isDesktopRuntime ? home.gameInfo.gameTypeLabel : gameModeLabel }}
           </dd>
         </div>
         <div
@@ -188,7 +200,10 @@ function openRecent(matchId: string) {
             ></i>
             {{ t(currentMatch ? 'home.lockedRule' : 'home.scoreRule') }}
           </dt>
-          <dd id="home-rule-text" class="min-w-0 text-right text-sm font-semibold text-text-soft">
+          <dd
+            id="home-rule-text"
+            class="min-w-0 break-words text-right text-sm font-semibold text-text-soft"
+          >
             {{ ruleLabel }}
           </dd>
         </div>
@@ -197,15 +212,11 @@ function openRecent(matchId: string) {
 
     <section aria-labelledby="home-recent-title" class="space-y-2">
       <h2 id="home-recent-title" class="text-xs font-semibold text-text-secondary">
-        {{ t('home.recentMatches', { count: HOME_RECENT_MATCH_LIMIT }) }}
+        {{ t('home.recentMatches') }}
       </h2>
       <ul v-if="recentMatches.length" class="space-y-2">
         <li v-for="entry in recentMatches" :key="entry.match.id">
-          <RecentMatchCard
-            :match="entry.match"
-            :duration="entry.duration"
-            @open="openRecent(entry.match.id)"
-          />
+          <RecentMatchCard :match="entry.match" @open="openRecent(entry.match.id)" />
         </li>
       </ul>
       <div v-else class="glass-card rounded-xl p-3 text-xs text-text-muted">

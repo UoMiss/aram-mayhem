@@ -89,6 +89,7 @@ describe('LCU service runtime selection', () => {
 })
 
 const gameflowSnapshot: import('@/types/lcu').GameflowSnapshot = {
+  readyCheckStatus: null,
   revision: 3,
   updatedAt: 123,
   connected: true,

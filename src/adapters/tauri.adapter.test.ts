@@ -1,3 +1,4 @@
+import { testUpdateSnapshot } from '../../tests/fixtures/update-contract'
 import {
   testSettlement,
   TEST_SETTLEMENT_ACCOUNT,
@@ -18,7 +19,12 @@ import {
 
 const invokeMock = vi.hoisted(() => vi.fn())
 const listenMock = vi.hoisted(() => vi.fn())
-vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: invokeMock,
+  Channel: class {
+    onmessage = () => undefined
+  },
+}))
 vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }))
 
 import {
@@ -127,6 +133,7 @@ describe('tauri LCU adapter', () => {
 })
 
 const gameflowSnapshot: GameflowSnapshot = {
+  readyCheckStatus: null,
   revision: 7,
   updatedAt: 123,
   connected: true,
@@ -154,6 +161,15 @@ describe('tauri gameflow adapter', () => {
     expect(invokeMock).toHaveBeenNthCalledWith(1, 'lcu_get_gameflow_snapshot')
     expect(invokeMock).toHaveBeenNthCalledWith(2, 'lcu_start_gameflow_monitoring')
     expect(invokeMock).toHaveBeenNthCalledWith(3, 'lcu_stop_gameflow_monitoring')
+  })
+
+  it('rejects unknown or missing ready-check feedback from native snapshots', async () => {
+    for (const readyCheckStatus of ['success', true, undefined]) {
+      invokeMock.mockResolvedValue({ ...gameflowSnapshot, readyCheckStatus })
+      await expect(tauriGameflowAdapter.getSnapshot()).rejects.toMatchObject({
+        code: 'lcu.invalid_response',
+      })
+    }
   })
 
   it('subscribes all typed events and unlistens them together', async () => {
@@ -304,6 +320,12 @@ describe('participant IPC contract', () => {
     const snapshot = {
       accountKey: 'account-1',
       lobbyKey: 'room-1',
+      completeness: 'complete',
+      evidence: 'custom_teams',
+      issue: null,
+      eligibleCount: 1,
+      unresolvedCount: 0,
+      context: { sessionKey: 'session-1', connectionGeneration: 1 },
       status: 'custom',
       updatedAt: 1,
       players: [{ id: 'one', name: 'Player' }],
@@ -315,6 +337,11 @@ describe('participant IPC contract', () => {
       { ...snapshot, players: [...snapshot.players, ...snapshot.players] },
       { ...snapshot, status: 'not_custom' },
       { ...snapshot, players: [{ id: '', name: 'Bad' }] },
+      { ...snapshot, eligibleCount: 8 },
+      { ...snapshot, unresolvedCount: 1 },
+      { ...snapshot, context: null },
+      { ...snapshot, evidence: 'members' },
+      { ...snapshot, issue: 'unexpected_reason' },
     ]) {
       invokeMock.mockResolvedValueOnce(invalid)
       await expect(tauriParticipantsAdapter.getCustomParticipants()).rejects.toMatchObject({
@@ -364,6 +391,27 @@ describe('settlement IPC contract', () => {
       })
     }
   })
+  it('preserves pending/unavailable codes and missing-damage snapshots without fabricated ranks', async () => {
+    for (const code of ['settlement_pending', 'settlement_unavailable', 'timeout', 'http_status']) {
+      invokeMock.mockRejectedValueOnce({ code, message: 'secret' })
+      await expect(tauriSettlementAdapter.getSettlement(request)).rejects.toMatchObject({
+        code: `lcu.${code}`,
+      })
+    }
+    const partial = testSettlement({ rankingStatus: 'missing_damage' })
+    partial.players = partial.players.map((player) => ({
+      ...player,
+      damage: null,
+      rank: null,
+      ruleValue: null,
+    }))
+    invokeMock.mockResolvedValueOnce(partial)
+    await expect(tauriSettlementAdapter.getSettlement(request)).resolves.toEqual(partial)
+    invokeMock.mockResolvedValueOnce({ ...partial, rankingStatus: 'ready' })
+    await expect(tauriSettlementAdapter.getSettlement(request)).rejects.toMatchObject({
+      code: 'lcu.invalid_response',
+    })
+  })
   it('normalizes business and unknown host failures', async () => {
     invokeMock.mockRejectedValueOnce({ code: 'account_changed', message: 'secret' })
     await expect(tauriSettlementAdapter.getSettlement(request)).rejects.toMatchObject({
@@ -377,30 +425,53 @@ describe('settlement IPC contract', () => {
   })
 })
 
-describe('native settings', () => {
-  it('validates startup and release results', async () => {
-    invokeMock.mockResolvedValueOnce(true)
-    await expect(tauriSettingsAdapter.autoStart(true)).resolves.toBe(true)
-    expect(invokeMock).toHaveBeenLastCalledWith('app_auto_start', { enabled: true })
-    invokeMock.mockResolvedValueOnce({ configured: false, latest: null, available: false })
-    await expect(tauriSettingsAdapter.checkUpdate()).resolves.toEqual({
-      configured: false,
-      latest: null,
-      available: false,
+describe('native settings updater bridge', () => {
+  it('validates native state and never sends a URL or installer bytes from the frontend', async () => {
+    const result = testUpdateSnapshot({
+      revision: 1,
+      phase: 'available',
+      latest: '0.2.0',
+      canDownload: true,
     })
-    invokeMock.mockResolvedValueOnce({ configured: true, latest: null, available: true })
-    await expect(tauriSettingsAdapter.checkUpdate()).rejects.toMatchObject({
-      code: 'lcu.invalid_response',
-    })
+    invokeMock.mockResolvedValueOnce(result)
+    await expect(tauriSettingsAdapter.checkUpdate()).resolves.toEqual(result)
+    expect(invokeMock).toHaveBeenLastCalledWith('app_check_update')
+    for (const invalid of [
+      { ...result, latest: null },
+      { ...result, phase: 'downloading' },
+      { ...result, canInstall: true },
+      { ...result, downloaded: -1 },
+    ]) {
+      invokeMock.mockResolvedValueOnce(invalid)
+      await expect(tauriSettingsAdapter.getUpdateState()).rejects.toMatchObject({
+        code: 'update.invalid_response',
+      })
+    }
+    invokeMock.mockResolvedValueOnce(result)
+    const onProgress = vi.fn()
+    await tauriSettingsAdapter.downloadUpdate(onProgress)
+    const [command, args] = invokeMock.mock.lastCall!
+    expect(command).toBe('app_download_update')
+    expect(Object.keys(args)).toEqual(['onProgress'])
+    args.onProgress.onmessage({ malformed: true })
+    expect(onProgress).not.toHaveBeenCalled()
+    args.onProgress.onmessage(
+      testUpdateSnapshot({ phase: 'downloading', revision: 2, latest: '0.2.0', downloaded: 10 }),
+    )
+    expect(onProgress).toHaveBeenCalledOnce()
+    invokeMock.mockResolvedValueOnce(testUpdateSnapshot({ phase: 'installing' }))
+    await tauriSettingsAdapter.installUpdate()
+    expect(invokeMock).toHaveBeenLastCalledWith('app_install_update')
   })
-
-  it('normalizes native permission errors and unknown bridge failures', async () => {
-    invokeMock.mockRejectedValueOnce({ code: 'internal', message: 'private host detail' })
-    await expect(tauriSettingsAdapter.autoStart()).rejects.toMatchObject({ code: 'lcu.internal' })
-    invokeMock.mockRejectedValueOnce(new Error('private bridge detail'))
-    await expect(tauriSettingsAdapter.setAutoRetry(false)).rejects.toMatchObject({
-      code: 'lcu.auto_retry_failed',
-      message: 'LCU IPC failed',
+  it('normalizes failures without exposing host details', async () => {
+    invokeMock.mockRejectedValueOnce({ code: 'update.game_active', message: 'private detail' })
+    await expect(tauriSettingsAdapter.installUpdate()).rejects.toMatchObject({
+      code: 'update.game_active',
+      message: 'Update operation failed',
+    })
+    invokeMock.mockRejectedValueOnce(new Error('private detail'))
+    await expect(tauriSettingsAdapter.cancelUpdate()).rejects.toMatchObject({
+      code: 'update.ipc_failed',
     })
   })
 })

@@ -68,7 +68,7 @@ mod tests {
         async fn profile(&self) -> Result<Value, LcuError> {
             Ok(self.0.lock().unwrap().pop_front().unwrap())
         }
-        async fn matches(&self, _: &str, _: u32) -> Result<Value, LcuError> {
+        async fn matches(&self, _: &str) -> Result<Value, LcuError> {
             panic!("home must not query matches")
         }
         async fn champion_names(&self) -> HashMap<u32, String> {

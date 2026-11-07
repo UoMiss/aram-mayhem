@@ -1,3 +1,6 @@
+import { isUpdateSnapshot } from '@/shared/ipc/settings-contract'
+import type { GameMetadataRequest } from '@/types/game-info'
+import { isGameMetadata } from '@/shared/ipc/metadata-contract'
 import type { MatchRuleRecord, OpeningChoice } from '@/types/match-rule-api'
 import { isSettlementSnapshot } from '@/shared/ipc/settlement-contract'
 import type { SettlementRequest } from '@/types/settlement-api'
@@ -14,7 +17,8 @@ import {
   nullable,
   parseContract,
 } from '@/shared/ipc/contracts'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, Channel } from '@tauri-apps/api/core'
+import type { UpdateSnapshot } from '@/types/settings'
 import { listen } from '@tauri-apps/api/event'
 import { DesktopServiceError, normalizeLcuError } from '@/services/desktop-error'
 import type { AppHealth, DesktopAdapter } from '@/types/desktop'
@@ -168,14 +172,9 @@ export const tauriGameflowAdapter: GameflowAdapter = {
 
 /** Read-only history commands share the same validated IPC boundary. */
 export const tauriHistoryAdapter = {
-  async getMatchHistory(offset = 0) {
+  async getMatchHistory() {
     try {
-      return parseContract(
-        await (offset
-          ? invoke<unknown>('lcu_get_match_history', { offset })
-          : invoke<unknown>('lcu_get_match_history')),
-        isHistorySnapshot,
-      )
+      return parseContract(await invoke<unknown>('lcu_get_match_history'), isHistorySnapshot)
     } catch (error) {
       throw normalizeLcuError(error, 'lcu.history_failed')
     }
@@ -218,46 +217,78 @@ export const tauriSettlementAdapter = {
   },
 }
 
-interface UpdateCheck {
-  configured: boolean
-  latest: string | null
-  available: boolean
+function updateError(error: unknown): DesktopServiceError {
+  const codes = [
+    'update.busy',
+    'update.not_ready',
+    'update.denied',
+    'update.unsupported',
+    'update.game_active',
+  ]
+  const code =
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    codes.includes(error.code)
+      ? error.code
+      : 'update.ipc_failed'
+  return new DesktopServiceError(code, 'Update operation failed')
 }
-
-function isUpdateCheck(value: unknown): value is UpdateCheck {
-  if (!value || typeof value !== 'object') return false
-  const result = value as Record<string, unknown>
-  return (
-    typeof result.configured === 'boolean' &&
-    typeof result.available === 'boolean' &&
-    (result.latest === null || typeof result.latest === 'string') &&
-    (!result.available || (result.configured && typeof result.latest === 'string'))
-  )
+async function updateCommand(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<UpdateSnapshot> {
+  try {
+    const result = args ? await invoke<unknown>(command, args) : await invoke<unknown>(command)
+    if (!isUpdateSnapshot(result))
+      throw new DesktopServiceError('update.invalid_response', 'Invalid update response')
+    return result
+  } catch (error) {
+    if (error instanceof DesktopServiceError) throw error
+    throw updateError(error)
+  }
 }
 
 export const tauriSettingsAdapter = {
-  async autoStart(enabled?: boolean) {
+  async setAutoAccept(enabled: boolean) {
     try {
       return parseContract(
-        await invoke<unknown>('app_auto_start', { enabled }),
+        await invoke<unknown>('lcu_set_auto_accept', { enabled }),
         (value): value is boolean => typeof value === 'boolean',
       )
     } catch (error) {
-      throw normalizeLcuError(error, 'lcu.autostart_failed')
+      throw normalizeLcuError(error, 'lcu.auto_accept_failed')
     }
   },
-  async setAutoRetry(enabled: boolean) {
+  getUpdateState() {
+    return updateCommand('app_get_update_state')
+  },
+  checkUpdate() {
+    return updateCommand('app_check_update')
+  },
+  downloadUpdate(onProgress: (snapshot: UpdateSnapshot) => void) {
+    const channel = new Channel<unknown>()
+    channel.onmessage = (value) => {
+      if (isUpdateSnapshot(value)) onProgress(value)
+    }
+    return updateCommand('app_download_update', { onProgress: channel })
+  },
+  installUpdate() {
+    return updateCommand('app_install_update')
+  },
+  async cancelUpdate() {
     try {
-      await invoke('lcu_set_auto_retry', { enabled })
+      await invoke('app_cancel_update')
     } catch (error) {
-      throw normalizeLcuError(error, 'lcu.auto_retry_failed')
+      throw updateError(error)
     }
   },
-  async checkUpdate() {
+  async openReleasePage() {
     try {
-      return parseContract(await invoke<unknown>('app_check_update'), isUpdateCheck)
+      await invoke('app_open_release_page')
     } catch (error) {
-      throw normalizeLcuError(error, 'lcu.update_check_failed')
+      throw updateError(error)
     }
   },
 }
@@ -305,6 +336,22 @@ export const tauriMatchRuleAdapter = {
       return record
     } catch (error) {
       throw normalizeLcuError(error, 'lcu.match_rule_failed')
+    }
+  },
+}
+
+export const tauriMetadataAdapter = {
+  async get(request: GameMetadataRequest) {
+    try {
+      const result = parseContract(
+        await invoke<unknown>('lcu_get_game_metadata', { ...request }),
+        isGameMetadata,
+      )
+      if (result.queueId !== request.queueId || result.mapId !== request.mapId)
+        throw new Error('Metadata IDs changed')
+      return result
+    } catch (error) {
+      throw normalizeLcuError(error, 'lcu.metadata_failed')
     }
   },
 }

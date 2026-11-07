@@ -47,6 +47,7 @@ pub struct SettlementSnapshot {
     pub id: String,
     pub account_key: String,
     pub queue_id: Option<u32>,
+    pub map_id: Option<i64>,
     pub game_mode: Option<String>,
     pub game_type: Option<String>,
     pub created_at: u64,
@@ -297,6 +298,7 @@ fn parse_settlement(
     Ok(SettlementSnapshot {
         id,
         account_key: account.to_string(),
+        map_id: crate::lcu::metadata::map_id(value.get("mapId")),
         queue_id: value
             .get("queueId")
             .and_then(Value::as_u64)
@@ -336,7 +338,15 @@ pub async fn load_settlement(
             "Account context changed",
         ));
     }
-    let detail = source.detail(&id).await?;
+    let detail = source.detail(&id).await;
+    // Even a missing/failed detail response must not revive an old account's retry context.
+    if detail.is_err() && profile_identity(&source.profile().await?)? != account {
+        return Err(LcuError::new(
+            LcuErrorCode::AccountChanged,
+            "Account changed during settlement query",
+        ));
+    }
+    let detail = detail?;
     let unranked_lucky = if rule == Some(SettlementRule::Lucky) {
         Some(parse_settlement(&detail, &id, account, rule, None, None)?)
     } else {
@@ -404,8 +414,14 @@ impl SettlementSource for SystemSettlementSource {
     async fn detail(&self, id: &str) -> Result<Value, LcuError> {
         let id = validate_game_id(id)?;
         self.http
-            .get_json(&self.client, &format!("/lol-match-history/v1/games/{id}"))
-            .await
+            .get_json_optional(&self.client, &format!("/lol-match-history/v1/games/{id}"))
+            .await?
+            .ok_or_else(|| {
+                LcuError::new(
+                    LcuErrorCode::SettlementUnavailable,
+                    "Match detail is not available",
+                )
+            })
     }
 }
 
@@ -427,6 +443,21 @@ mod tests {
         value["gameType"] = json!("CUSTOM_GAME");
         value["queueId"] = json!(0);
         value
+    }
+    #[test]
+    fn settlement_map_is_only_read_from_its_validated_game() {
+        let mut value = fixture();
+        value["mapId"] = serde_json::json!(11);
+        let result = parse_settlement(&value, ID, ACCOUNT, None, None, None).unwrap();
+        assert_eq!(result.map_id, Some(11));
+        assert!(parse_settlement(&value, "42", ACCOUNT, None, None, None).is_err());
+        value["mapId"] = serde_json::json!(-1);
+        assert_eq!(
+            parse_settlement(&value, ID, ACCOUNT, None, None, None)
+                .unwrap()
+                .map_id,
+            None
+        );
     }
     #[test]
     fn joins_reordered_identities_and_keeps_both_teams_and_exact_stats() {
@@ -599,6 +630,84 @@ mod tests {
     struct Source {
         profiles: Mutex<VecDeque<Value>>,
         reads: AtomicUsize,
+    }
+    struct DelayedSource {
+        profile_source: Source,
+        details: Mutex<VecDeque<Result<Value, LcuError>>>,
+    }
+    #[async_trait]
+    impl SettlementSource for DelayedSource {
+        async fn profile(&self) -> Result<Value, LcuError> {
+            self.profile_source.profile().await
+        }
+        async fn detail(&self, _: &str) -> Result<Value, LcuError> {
+            self.details.lock().unwrap().pop_front().unwrap()
+        }
+        async fn friends(&self) -> Result<Value, LcuError> {
+            panic!("custom match")
+        }
+    }
+    #[tokio::test]
+    async fn delayed_damage_recovers_without_inventing_zero_damage_or_ranks() {
+        let mut partial = fixture();
+        partial["participants"][0]["stats"]
+            .as_object_mut()
+            .unwrap()
+            .remove("totalDamageDealtToChampions");
+        let source = DelayedSource {
+            profile_source: Source::new(&[ACCOUNT, ACCOUNT, ACCOUNT, ACCOUNT]),
+            details: Mutex::new(vec![Ok(partial), Ok(fixture())].into()),
+        };
+        let first = load_settlement(&source, ID, ACCOUNT, Some(SettlementRule::Damage), || {
+            Ok(None)
+        })
+        .await
+        .unwrap();
+        assert_eq!(first.ranking_status, "missing_damage");
+        assert!(first.players[0].damage.is_none());
+        assert!(first.players.iter().all(|p| p.rank.is_none()));
+        let complete = load_settlement(&source, ID, ACCOUNT, Some(SettlementRule::Damage), || {
+            Ok(None)
+        })
+        .await
+        .unwrap();
+        assert_eq!(complete.ranking_status, "ready");
+        assert!(
+            complete
+                .players
+                .iter()
+                .all(|p| p.damage.is_some() && p.rank.is_some())
+        );
+    }
+    #[tokio::test]
+    async fn missing_detail_and_timeouts_preserve_errors_and_recheck_account_without_drawing() {
+        for code in [
+            LcuErrorCode::SettlementUnavailable,
+            LcuErrorCode::Timeout,
+            LcuErrorCode::HttpStatus,
+            LcuErrorCode::InvalidResponse,
+        ] {
+            for after in [ACCOUNT, "other-account"] {
+                let source = DelayedSource {
+                    profile_source: Source::new(&[ACCOUNT, after]),
+                    details: Mutex::new(vec![Err(LcuError::new(code, "detail failed"))].into()),
+                };
+                let error =
+                    load_settlement(&source, ID, ACCOUNT, Some(SettlementRule::Lucky), || {
+                        panic!("missing detail must not draw")
+                    })
+                    .await
+                    .unwrap_err();
+                assert_eq!(
+                    error.code,
+                    if after == ACCOUNT {
+                        code.as_str()
+                    } else {
+                        "account_changed"
+                    }
+                );
+            }
+        }
     }
     impl Source {
         fn new(accounts: &[&str]) -> Self {

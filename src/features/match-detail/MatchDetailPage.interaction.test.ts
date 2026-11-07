@@ -9,7 +9,8 @@ import { useRulesStore } from '@/stores/rules'
 import { useSettlementStore } from '@/stores/settlement'
 import { useUiStore } from '@/stores/ui'
 import { LcuServiceError } from '@/services/desktop-error'
-import { connectedStatus } from '../../../tests/fixtures/home-contract'
+import { useMatchLifecycle } from '@/composables/useMatchLifecycle'
+import { connectedStatus, homeFlow } from '../../../tests/fixtures/home-contract'
 import {
   TEST_SETTLEMENT_ACCOUNT,
   TEST_SETTLEMENT_ID,
@@ -71,12 +72,14 @@ describe('real match settlement', () => {
     const meta = page.get('#settlement-meta')
     expect(meta.element.children).toHaveLength(3)
     expect(meta.text()).not.toContain(TEST_SETTLEMENT_ID)
+    expect(meta.text()).not.toContain('地图')
     expect(meta.text()).toContain('当前规则：伤害尾数规则')
     expect(meta.text()).toContain('海克斯大乱斗')
-    expect(meta.get('.tabular-nums').text()).toBe('时长：20:04')
+    expect(meta.get('.tabular-nums').text()).toBe('20:04')
+    expect(meta.get('.tabular-nums').attributes('aria-label')).toBe('时长：20:04')
     expect(meta.element.previousElementSibling?.textContent).toContain('对局结算')
     expect(meta.element.previousElementSibling?.querySelector('button')).not.toBeNull()
-    expect(meta.find('.fa-clock').exists()).toBe(false)
+    expect(meta.find('.fa-clock').exists()).toBe(true)
     const screenshot = page.get('#screenshot-area')
     expect(screenshot.find('#settlement-meta').exists()).toBe(false)
     expect(screenshot.find('h2').exists()).toBe(false)
@@ -193,4 +196,143 @@ describe('real match settlement', () => {
     expect(useSettlementStore(pinia).snapshot).toBeNull()
     expect(page.find('#screenshot-area').exists()).toBe(false)
   })
+})
+
+it('audit_account_invalidation_clears_already_displayed_settlement_even_with_transport_connected', async () => {
+  const lifecycleHost = mount(
+    {
+      setup() {
+        useMatchLifecycle()
+        return () => null
+      },
+    },
+    { global: { plugins: [pinia, createAppI18n()] } },
+  )
+  try {
+    const page = render()
+    await flushPromises()
+    expect(useSettlementStore(pinia).snapshot?.accountKey).toBe(TEST_SETTLEMENT_ACCOUNT)
+    useConnectionStore(pinia).setGameflowSnapshot(
+      homeFlow({
+        revision: 100,
+        connected: false,
+        phase: null,
+        session: null,
+        code: 'account_changed',
+      }),
+    )
+    await flushPromises()
+    expect(useConnectionStore(pinia).isRealLcuConnected).toBe(true)
+    expect(useSettlementStore(pinia).snapshot).toBeNull()
+    expect(page.find('#screenshot-area').exists()).toBe(false)
+  } finally {
+    lifecycleHost.unmount()
+  }
+})
+
+it.each([
+  { accountKey: 'account-B', lateError: false },
+  { accountKey: 'account-B', lateError: true },
+  { accountKey: TEST_SETTLEMENT_ACCOUNT, lateError: false },
+  { accountKey: TEST_SETTLEMENT_ACCOUNT, lateError: true },
+])(
+  'does not reopen an invalid target after login as $accountKey (lateError=$lateError)',
+  async ({ accountKey, lateError }) => {
+    const lifecycleHost = mount(
+      {
+        setup() {
+          useMatchLifecycle()
+          return () => null
+        },
+      },
+      { global: { plugins: [pinia, createAppI18n()] } },
+    )
+    try {
+      let finish!: () => void
+      api.load.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            finish = () =>
+              lateError
+                ? reject(new LcuServiceError('lcu.account_changed', 'Old request failed'))
+                : resolve({ source: 'real', snapshot: testSettlement() })
+          }),
+      )
+      const page = render()
+      await flushPromises()
+      const connection = useConnectionStore(pinia)
+      connection.setGameflowSnapshot(
+        homeFlow({
+          revision: 2,
+          connected: false,
+          phase: null,
+          session: null,
+          code: 'account_changed',
+        }),
+      )
+      expect(useSettlementStore(pinia).isLoading).toBe(false)
+      expect(useHistoryStore(pinia).selectedMatchId).toBeNull()
+      connection.setGameflowSnapshot(homeFlow({ revision: 3 }))
+      await flushPromises()
+      expect(api.load).toHaveBeenCalledOnce()
+      expect(page.find('#screenshot-area').exists()).toBe(false)
+      const fresh = testSettlement({
+        accountKey,
+        lockedRule: true,
+        appliedRule: 'lucky',
+        luckyDigit: 7,
+      })
+      fresh.players = fresh.players.map((player) => ({ ...player, nickname: '重新登录后的玩家' }))
+      api.load.mockResolvedValueOnce({ source: 'real', snapshot: fresh })
+      useHistoryStore(pinia).openLiveSettlement(TEST_SETTLEMENT_ID, accountKey)
+      await flushPromises()
+      expect(page.text()).toContain('重新登录后的玩家')
+      finish()
+      await flushPromises()
+      expect(page.text()).not.toContain('真实玩家#CN1')
+      expect(page.text()).toContain('重新登录后的玩家')
+      expect(useSettlementStore(pinia).snapshot).toEqual(fresh)
+      expect(useSettlementStore(pinia).errorCode).toBeNull()
+      expect(page.get('#settlement-lucky-digit strong').text()).toBe('7')
+    } finally {
+      lifecycleHost.unmount()
+    }
+  },
+)
+
+it('audit_missing_damage_after_game_retries_when_statistics_become_ready', async () => {
+  vi.useFakeTimers()
+  try {
+    const flow = homeFlow()
+    useConnectionStore(pinia).setGameflowSnapshot(
+      homeFlow({
+        phase: 'end_of_game',
+        session: { ...flow.session!, phase: 'end_of_game', gameId: TEST_SETTLEMENT_ID },
+      }),
+    )
+    useHistoryStore(pinia).openLiveSettlement(TEST_SETTLEMENT_ID, TEST_SETTLEMENT_ACCOUNT)
+    const initial = testSettlement()
+    api.load.mockResolvedValueOnce({
+      source: 'real',
+      snapshot: {
+        ...initial,
+        rankingStatus: 'missing_damage',
+        players: initial.players.map((player) => ({
+          ...player,
+          damage: null,
+          rank: null,
+          ruleValue: null,
+        })),
+      },
+    })
+    render()
+    await flushPromises()
+    expect(useSettlementStore(pinia).snapshot?.rankingStatus).toBe('missing_damage')
+    await vi.advanceTimersByTimeAsync(10000)
+    await flushPromises()
+    expect(api.load.mock.calls.length).toBeGreaterThan(1)
+    expect(useSettlementStore(pinia).snapshot?.rankingStatus).toBe('ready')
+  } finally {
+    vi.useRealTimers()
+  }
 })

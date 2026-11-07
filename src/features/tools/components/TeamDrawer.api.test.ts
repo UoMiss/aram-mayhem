@@ -5,10 +5,11 @@ import { createPinia, disposePinia } from 'pinia'
 import { createAppI18n } from '@/i18n'
 import { useConnectionStore } from '@/stores/connection'
 import { LcuServiceError } from '@/services/desktop-error'
-import { connectedStatus } from '../../../../tests/fixtures/home-contract'
+import { connectedStatus, homeFlow } from '../../../../tests/fixtures/home-contract'
 import { testParticipants } from '../../../../tests/fixtures/participants-contract'
 import { PARTICIPANTS_REFRESH_MS } from '../useTeamParticipants'
-const api = vi.hoisted(() => ({ load: vi.fn() }))
+const api = vi.hoisted(() => ({ load: vi.fn(), capture: vi.fn() }))
+vi.mock('@/services/image.service', () => ({ captureAndDeliverScreenshot: api.capture }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
 vi.mock('@/services/participants.service', () => ({ getCustomParticipants: api.load }))
 import TeamDrawer from './TeamDrawer.vue'
@@ -20,10 +21,16 @@ function render(open = true) {
 }
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+  api.capture.mockReset().mockResolvedValue({ status: 'copied' })
   api.load.mockReset()
   api.load.mockResolvedValue({ source: 'real', snapshot: testParticipants() })
   pinia = createPinia()
   useConnectionStore(pinia).setLcuStatus(connectedStatus())
+  const flow = homeFlow()
+  flow.session!.lobby!.lobbyId = 'room-1'
+  flow.session!.modeContext!.isCustomGame = true
+  flow.session!.modeContext!.mapId = 12
+  useConnectionStore(pinia).setGameflowSnapshot(flow)
 })
 afterEach(() => {
   wrapper?.unmount()
@@ -66,7 +73,7 @@ describe('custom lobby team participants', () => {
     })
     const page = render()
     await flushPromises()
-    expect(page.text()).toContain('客户端暂未返回组队名单')
+    expect(page.text()).toContain('仅支持自定义房间')
     expect(page.get('#randomBtn').attributes('disabled')).toBeDefined()
     api.load.mockRejectedValueOnce(new LcuServiceError('lcu.timeout', 'password=secret'))
     await page.get('#refreshTeamPlayers').trigger('click')
@@ -80,7 +87,7 @@ describe('custom lobby team participants', () => {
     })
     await page.get('#refreshTeamPlayers').trigger('click')
     await flushPromises()
-    expect(page.text()).toContain('进入组队大厅或选人阶段')
+    expect(page.text()).toContain('进入自定义房间')
     await page.get('#refreshTeamPlayers').trigger('click')
     await flushPromises()
     expect(page.get('#randomBtn').attributes('disabled')).toBeUndefined()
@@ -92,7 +99,7 @@ describe('custom lobby team participants', () => {
     await page.get('#randomBtn').trigger('click')
     await flushPromises()
     expect(page.text()).toContain('请核对名单后重新分组')
-    expect(page.text()).toContain('人数为奇数')
+    expect(page.text()).toContain('仅支持 6、8、10 人')
     expect(page.get('#teamA').findAll('[title]')).toHaveLength(0)
   })
   it('clears immediately on disconnect and ignores a late response after closing', async () => {
@@ -100,7 +107,7 @@ describe('custom lobby team participants', () => {
     await flushPromises()
     useConnectionStore(pinia).setLcuStatus(connectedStatus({ status: 'disconnected', revision: 2 }))
     await flushPromises()
-    expect(page.get('#playerCount').text()).toBe('0 人')
+    expect(page.get('#playerCount').text()).toBe('仅已识别 0 人')
     expect(page.get('#randomBtn').attributes('disabled')).toBeDefined()
     let resolve!: (value: unknown) => void
     api.load.mockReturnValueOnce(
@@ -113,7 +120,7 @@ describe('custom lobby team participants', () => {
     await page.setProps({ open: false })
     resolve({ source: 'real', snapshot: testParticipants() })
     await flushPromises()
-    expect(page.get('#playerCount').text()).toBe('0 人')
+    expect(page.get('#playerCount').text()).toBe('仅已识别 0 人')
     await vi.advanceTimersByTimeAsync(PARTICIPANTS_REFRESH_MS * 2)
     expect(api.load).toHaveBeenCalledTimes(2)
     page.unmount()
@@ -138,5 +145,147 @@ describe('custom lobby team participants', () => {
     await flushPromises()
     expect(page.find('#timestampBar').exists()).toBe(false)
     expect(page.get('#teamA').findAll('[title]')).toHaveLength(0)
+  })
+})
+
+describe('strict draw and result lifecycle', () => {
+  async function draw(page: ReturnType<typeof render>) {
+    await flushPromises()
+    await page.get('#randomBtn').trigger('click')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(3000)
+  }
+  it.each([6, 8, 10])('allows complete custom %i-player rooms', async (count) => {
+    api.load.mockResolvedValue({ source: 'real', snapshot: testParticipants(count) })
+    const page = render()
+    await draw(page)
+    expect(page.get('#teamA').findAll('[title]')).toHaveLength(count / 2)
+    expect(page.get('#teamB').findAll('[title]')).toHaveLength(count / 2)
+    expect(page.get('#teamCaptureArea').text()).not.toContain('名单已确认')
+    expect(page.get('#team-result-meta').text()).toBe(
+      `自定义 · ${count / 2}v${count / 2} · 嚎哭深渊`,
+    )
+    expect(page.get('#team-drawer-title').text()).toBe('自定义随机分队')
+    expect(page.get('#playerCount').element.parentElement?.textContent).toContain(
+      `参与玩家 · ${count} 人`,
+    )
+    expect(page.text()).not.toContain('仅生成分队建议')
+    expect(page.text()).not.toContain('当前自定义房间双方真人玩家')
+    expect(page.get('#randomBtn').text()).toBe('重新分队')
+    expect(page.get('#teamCaptureArea').text()).toContain('蓝色方')
+    expect(page.get('#teamCaptureArea').text()).not.toContain('account-1')
+  })
+  it.each([3, 4, 5, 7, 9, 11])('blocks unsupported %i-player rooms', async (count) => {
+    api.load.mockResolvedValue({ source: 'real', snapshot: testParticipants(count) })
+    const page = render()
+    await flushPromises()
+    expect(page.get('#randomBtn').attributes('disabled')).toBeDefined()
+    expect(page.text()).toContain('仅支持 6、8、10 人')
+  })
+  it.each(['party', 'champ_select'] as const)(
+    'blocks %s even with enough players',
+    async (status) => {
+      api.load.mockResolvedValue({ source: 'real', snapshot: testParticipants(10, { status }) })
+      const page = render()
+      await flushPromises()
+      expect(page.get('#randomBtn').attributes('disabled')).toBeDefined()
+      expect(page.text()).toContain('仅支持自定义房间')
+    },
+  )
+  it.each(['partial', 'unknown'] as const)(
+    'blocks a %s roster and labels the count as identified only',
+    async (completeness) => {
+      api.load.mockResolvedValue({
+        source: 'real',
+        snapshot: testParticipants(8, {
+          completeness,
+          issue: 'unresolved_slots',
+          unresolvedCount: 2,
+        }),
+      })
+      const page = render()
+      await flushPromises()
+      expect(page.get('#randomBtn').attributes('disabled')).toBeDefined()
+      expect(page.get('#playerCount').text()).toBe('仅已识别 8 人')
+      expect(page.text()).toContain('参赛资格未核实')
+    },
+  )
+  it('updates names without changing membership, then invalidates when completeness drops', async () => {
+    const page = render()
+    await draw(page)
+    const originalA = page
+      .get('#teamA')
+      .findAll('[title]')
+      .map((p) => p.text())
+    const updated = testParticipants()
+    updated.players = updated.players.map((p) => ({ ...p, name: `新${p.name}` }))
+    api.load.mockResolvedValue({ source: 'real', snapshot: updated })
+    await page.get('#refreshTeamPlayers').trigger('click')
+    await flushPromises()
+    expect(
+      page
+        .get('#teamA')
+        .findAll('[title]')
+        .map((p) => p.text()),
+    ).toEqual(originalA.map((n) => `新${n}`))
+    expect(page.find('#timestampBar').exists()).toBe(true)
+    api.load.mockResolvedValue({
+      source: 'real',
+      snapshot: {
+        ...updated,
+        completeness: 'partial',
+        issue: 'unresolved_slots',
+        unresolvedCount: 1,
+      },
+    })
+    await page.get('#refreshTeamPlayers').trigger('click')
+    await flushPromises()
+    expect(page.find('#timestampBar').exists()).toBe(false)
+    expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
+  })
+  it('clears results for the same player set in a new session and rejects a stale session response', async () => {
+    const page = render()
+    await draw(page)
+    const connection = useConnectionStore(pinia)
+    const old = connection.gameflowSnapshot!
+    connection.setGameflowSnapshot({
+      ...old,
+      revision: 2,
+      session: { ...old.session!, sessionKey: 'new-room-session' },
+    })
+    await flushPromises()
+    expect(page.find('#timestampBar').exists()).toBe(false)
+    expect(page.get('#randomBtn').attributes('disabled')).toBeDefined()
+    expect(page.get('#unrandomizedView').findAll('[title]')).toHaveLength(0)
+  })
+  it('clears results on close and never restores them simply by reopening', async () => {
+    const page = render()
+    await draw(page)
+    await page.setProps({ open: false })
+    await page.setProps({ open: true })
+    await flushPromises()
+    expect(page.find('#timestampBar').exists()).toBe(false)
+    expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
+  })
+  it('revalidates at the delivery boundary and rejects a roster changed during capture', async () => {
+    const page = render()
+    await draw(page)
+    let canDeliver!: () => Promise<boolean>
+    let finish!: () => void
+    api.capture.mockImplementation((_element, options) => {
+      canDeliver = options.beforeDeliver
+      return new Promise((resolve) => {
+        finish = () => resolve({ status: 'copied' })
+      })
+    })
+    await page.get('#copyTeamBtn').trigger('click')
+    await flushPromises()
+    expect(api.capture).toHaveBeenCalledOnce()
+    api.load.mockResolvedValue({ source: 'real', snapshot: testParticipants(8) })
+    expect(await canDeliver()).toBe(false)
+    expect(page.find('#timestampBar').exists()).toBe(false)
+    finish()
+    await flushPromises()
+    expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
   })
 })

@@ -1,3 +1,4 @@
+import type { GameInfoInput } from './game-info'
 /** 保留原始演示类型，并区分普通 ARAM 与其他真实队列。 */
 export type MatchMode = 'hex' | 'custom' | 'aram' | 'other'
 
@@ -15,6 +16,8 @@ export interface MatchKda {
 
 /** 战绩卡片视图；真实记录保留时间戳，演示记录保留原始时间文案。 */
 export interface MatchHistoryItem {
+  gameInfo?: GameInfoInput
+  accountKey?: string
   id: string
   mode: MatchMode
   result: MatchResult

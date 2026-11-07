@@ -4,6 +4,7 @@ import type { LcuHistoryMatch, MatchHistorySnapshot } from '@/types/history-api'
 export const TEST_HISTORY_MATCH: LcuHistoryMatch = {
   id: '18446744073709551615',
   queueId: 2400,
+  mapId: null,
   gameMode: 'ARAM',
   gameType: 'MATCHED_GAME',
   createdAt: 1793760000000,

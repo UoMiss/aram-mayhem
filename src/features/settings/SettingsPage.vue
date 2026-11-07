@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import {
+  DialogRoot,
+  DialogPortal,
+  DialogOverlay,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from 'reka-ui'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useVersionUpdate } from './useVersionUpdate'
 import { isTauri } from '@tauri-apps/api/core'
 import type { SettingKey } from '@/types/settings'
 import { useDesktopStore } from '@/stores/desktop'
@@ -18,69 +28,42 @@ const { t } = useI18n({ useScope: 'global' })
 
 const native = computed(() => isTauri())
 const busy = ref<SettingKey | null>(null)
-const checking = ref(false)
-const startupReady = ref(false)
-onMounted(async () => {
-  if (!native.value) return
-  busy.value = 'autoStart'
-  try {
-    const { tauriSettingsAdapter } = await import('@/adapters/tauri.adapter')
-    settings.setSetting('autoStart', await tauriSettingsAdapter.autoStart())
-    startupReady.value = true
-  } catch {
-    // Keep the persisted OS setting untouched until the user explicitly changes it.
-  } finally {
-    busy.value = null
-  }
+const {
+  snapshot,
+  checking,
+  downloading,
+  busy: updateBusy,
+  opening,
+  failed,
+  progress,
+  message,
+  confirmInstall,
+  run,
+  cancel,
+  openRelease,
+} = useVersionUpdate()
+let disposed = false
+onUnmounted(() => {
+  disposed = true
+})
+onMounted(() => {
+  if (native.value) void settings.initializeAutoAccept().catch(() => undefined)
 })
 async function changeSetting(key: SettingKey, value: boolean) {
-  if (!native.value || key === 'soundEffects') {
+  if (!native.value) {
     settings.setSetting(key, value)
     return
   }
-  if (busy.value) return
+  if (busy.value || !settings.autoAcceptReady) return
   busy.value = key
   try {
     const { tauriSettingsAdapter } = await import('@/adapters/tauri.adapter')
-    if (key === 'autoStart') {
-      settings.setSetting(key, await tauriSettingsAdapter.autoStart(value))
-      startupReady.value = true
-    } else {
-      await tauriSettingsAdapter.setAutoRetry(value)
-      settings.setSetting(key, value)
-    }
+    if (disposed) return
+    settings.setSetting(key, await tauriSettingsAdapter.setAutoAccept(value))
   } catch {
-    feedback.notify(t('settings.saveFailed'), 'error')
+    if (!disposed) feedback.notify(t('settings.saveFailed'), 'error')
   } finally {
-    busy.value = null
-  }
-}
-async function checkForUpdates() {
-  if (!native.value) {
-    feedback.notify(t('settings.updateUnavailable'))
-    return
-  }
-  if (checking.value) return
-  checking.value = true
-  try {
-    const { tauriSettingsAdapter } = await import('@/adapters/tauri.adapter')
-    const result = await tauriSettingsAdapter.checkUpdate()
-    feedback.notify(
-      t(
-        !result.configured
-          ? 'settings.updateUnconfigured'
-          : result.latest === null
-            ? 'settings.noPublishedRelease'
-            : result.available
-              ? 'settings.updateAvailable'
-              : 'settings.upToDate',
-        { version: result.latest },
-      ),
-    )
-  } catch {
-    feedback.notify(t('settings.updateFailed'), 'error')
-  } finally {
-    checking.value = false
+    if (!disposed) busy.value = null
   }
 }
 </script>
@@ -96,14 +79,23 @@ async function checkForUpdates() {
         v-for="(key, index) in SETTINGS_OPTIONS"
         :key="key"
         :label="t(SETTING_LABEL_KEYS[key])"
-        :bordered="index < 2"
+        :bordered="index < SETTINGS_OPTIONS.length - 1"
         :model-value="settings.settings[key]"
-        :disabled="busy !== null && key !== 'soundEffects'"
+        :disabled="busy !== null || !settings.autoAcceptReady"
         @update:model-value="changeSetting(key, $event)"
       />
-      <p v-if="native && !startupReady && !busy" class="text-xs text-text-muted">
-        {{ t('settings.startupUnknown') }}
-      </p>
+      <button
+        v-if="native && !settings.autoAcceptReady && !busy"
+        type="button"
+        class="text-xs text-brand-light underline"
+        @click="
+          settings
+            .initializeAutoAccept()
+            .catch(() => feedback.notify(t('settings.saveFailed'), 'error'))
+        "
+      >
+        {{ t('settings.retryAutoAccept') }}
+      </button>
     </div>
 
     <div class="glass-card space-y-3 rounded-2xl p-4">
@@ -119,10 +111,107 @@ async function checkForUpdates() {
       <button
         type="button"
         class="w-full cursor-pointer rounded-xl border border-brand-bright/30 bg-brand-surface/30 py-2.5 text-xs text-brand-light transition-colors hover:bg-brand-deep/40"
-        :disabled="checking"
-        @click="checkForUpdates"
+        :disabled="updateBusy || opening"
+        :aria-busy="checking"
+        data-action="check-update"
+        @click="run('check')"
       >
         {{ t(checking ? 'settings.checking' : 'settings.checkUpdate') }}
+      </button>
+      <div v-if="message" class="space-y-2 text-xs" aria-live="polite">
+        <p
+          :role="failed ? 'alert' : 'status'"
+          :class="failed ? 'text-danger-light' : 'text-text-secondary'"
+        >
+          {{ message }}
+        </p>
+        <p
+          v-if="snapshot.notes"
+          class="max-h-36 overflow-y-auto whitespace-pre-wrap break-words text-text-muted"
+        >
+          {{ snapshot.notes }}
+        </p>
+        <div v-if="downloading" class="space-y-2">
+          <progress
+            class="h-2 w-full accent-brand"
+            :value="progress ?? undefined"
+            max="100"
+            :aria-label="t('settings.downloadProgress')"
+          ></progress>
+          <p class="tabular-nums text-text-muted">
+            {{ progress === null ? t('settings.downloadProgressUnknown') : `${progress}%` }}
+          </p>
+          <button
+            v-if="snapshot.phase === 'downloading'"
+            type="button"
+            data-action="cancel-update"
+            class="text-brand-light underline"
+            @click="cancel"
+          >
+            {{ t('settings.cancelDownload') }}
+          </button>
+        </div>
+        <button
+          v-if="snapshot.canDownload"
+          type="button"
+          data-action="download-update"
+          class="w-full cursor-pointer rounded-xl bg-brand-strong py-2.5 text-on-solid transition-colors hover:bg-brand-deep disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="updateBusy || opening"
+          @click="run('download')"
+        >
+          <i class="fa-solid fa-download mr-1.5" aria-hidden="true"></i
+          >{{ t('settings.downloadUpdate') }}
+        </button>
+        <button
+          v-if="snapshot.canInstall"
+          type="button"
+          data-action="install-update"
+          class="w-full cursor-pointer rounded-xl bg-brand-strong py-2.5 text-on-solid transition-colors hover:bg-brand-deep disabled:opacity-50"
+          :disabled="updateBusy || opening"
+          @click="confirmInstall = true"
+        >
+          {{ t('settings.installUpdate') }}
+        </button>
+      </div>
+      <DialogRoot v-model:open="confirmInstall">
+        <DialogPortal>
+          <DialogOverlay class="fixed inset-0 z-modal bg-ink/70 backdrop-blur-sm" />
+          <DialogContent
+            class="fixed top-1/2 left-1/2 z-modal w-[calc(100%_-_2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 space-y-4 rounded-2xl border border-brand/25 bg-card p-5 shadow-2xl"
+          >
+            <DialogTitle class="font-bold text-on-solid">{{
+              t('settings.installConfirmTitle')
+            }}</DialogTitle>
+            <DialogDescription class="text-sm leading-relaxed text-text-secondary">{{
+              t('settings.installConfirmDescription', { version: snapshot.latest })
+            }}</DialogDescription>
+            <div class="flex justify-end gap-3">
+              <DialogClose
+                class="rounded-lg bg-surface-raised px-4 py-2 text-sm text-text-secondary"
+                >{{ t('settings.installLater') }}</DialogClose
+              >
+              <button
+                type="button"
+                data-action="confirm-install"
+                class="rounded-lg bg-brand-strong px-4 py-2 text-sm text-on-solid"
+                :disabled="updateBusy || !snapshot.canInstall"
+                @click="run('install')"
+              >
+                {{ t('settings.confirmInstall') }}
+              </button>
+            </div>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
+      <button
+        v-if="native"
+        type="button"
+        data-action="release-page"
+        :disabled="updateBusy || opening"
+        class="text-xs text-brand-light underline disabled:opacity-50"
+        @click="openRelease"
+      >
+        {{ t('settings.releasePage') }}
       </button>
       <ExitAppButton class="w-full" />
     </div>

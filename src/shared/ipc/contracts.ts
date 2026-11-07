@@ -8,6 +8,8 @@ import type {
   LcuSource,
   LcuStatusDto,
   LobbySnapshot,
+  ModeContext,
+  ReadyCheckStatus,
 } from '@/types/lcu'
 import { LcuServiceError } from '@/services/desktop-error'
 
@@ -15,6 +17,7 @@ type Guard<T> = (value: unknown) => value is T
 const string: Guard<string> = (value): value is string => typeof value === 'string'
 const boolean: Guard<boolean> = (value): value is boolean => typeof value === 'boolean'
 const integer: Guard<number> = (value): value is number => Number.isSafeInteger(value)
+export const positive: Guard<number> = (value): value is number => integer(value) && value > 0
 const unsigned: Guard<number> = (value): value is number => integer(value) && value >= 0
 const nullable =
   <T>(guard: Guard<T>): Guard<T | null> =>
@@ -81,7 +84,10 @@ export const isLcuStatus = object<LcuStatusDto>({
 export const isLobby = object<LobbySnapshot>({
   lobbyId: nullable(string),
   queueId: nullable(integer),
+  mapId: nullable(positive),
   gameMode: nullable(string),
+  isCustomGame: (value): value is boolean | null | undefined =>
+    value === undefined || nullable(boolean)(value),
   memberCount: nullable(unsigned),
   updatedAt: unsigned,
 })
@@ -100,7 +106,15 @@ export const isChampionSelect = object<ChampionSelectSnapshot>({
   complete: boolean,
   updatedAt: unsigned,
 })
+export const isModeContext = object<ModeContext>({
+  queueId: nullable(unsigned),
+  mapId: nullable(positive),
+  gameMode: nullable(string),
+  isCustomGame: nullable(boolean),
+  source: oneOf(['lobby', 'gameflow']),
+})
 export const isSession = object<GameSessionContext>({
+  modeContext: nullable(isModeContext),
   sessionKey: string,
   gameId: (value): value is string | null | undefined =>
     value === undefined || nullable(string)(value),
@@ -115,6 +129,9 @@ export const isSession = object<GameSessionContext>({
   snapshotComplete: boolean,
 })
 export const isGameflow = object<GameflowSnapshot>({
+  readyCheckStatus: nullable(
+    oneOf<ReadyCheckStatus>(['waiting', 'accepting', 'accepted', 'declined', 'failed']),
+  ),
   revision: unsigned,
   updatedAt: unsigned,
   connected: boolean,

@@ -24,6 +24,7 @@ export function connectedStatus(overrides: Partial<LcuStatusDto> = {}): LcuStatu
 }
 export function homeFlow(overrides: Partial<GameflowSnapshot> = {}): GameflowSnapshot {
   return {
+    readyCheckStatus: null,
     revision: 1,
     updatedAt: 100,
     connected: true,
@@ -36,6 +37,13 @@ export function homeFlow(overrides: Partial<GameflowSnapshot> = {}): GameflowSna
     message: null,
     session: {
       sessionKey: 'session-1',
+      modeContext: {
+        mapId: null,
+        queueId: 2400,
+        gameMode: 'ARAM',
+        isCustomGame: false,
+        source: 'lobby',
+      },
       connectionGeneration: 1,
       phase: 'lobby',
       startedAt: 100,
@@ -44,6 +52,7 @@ export function homeFlow(overrides: Partial<GameflowSnapshot> = {}): GameflowSna
       lobby: {
         lobbyId: 'lobby-1',
         queueId: 2400,
+        mapId: null,
         gameMode: 'ARAM',
         memberCount: 3,
         updatedAt: 100,

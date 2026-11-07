@@ -53,6 +53,7 @@ export const browserLcuAdapter: LcuAdapter = {
 
 function mockGameflow(overrides: Partial<GameflowSnapshot> = {}): GameflowSnapshot {
   return {
+    readyCheckStatus: null,
     revision: 1,
     updatedAt: Date.now(),
     connected: true,

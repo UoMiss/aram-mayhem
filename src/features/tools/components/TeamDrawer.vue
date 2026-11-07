@@ -7,6 +7,8 @@ import { useConnectionStore } from '@/stores/connection'
 import { captureAndDeliverScreenshot } from '@/services/image.service'
 import { useFeedbackStore } from '@/stores/feedback'
 import { useTeamShuffle } from '@/features/tools/useTeamShuffle'
+import { isSupportedTeamCount } from '@/features/tools/teamRandomizer'
+import { useGameInfo } from '@/composables/useGameInfo'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -15,14 +17,65 @@ const feedback = useFeedbackStore()
 const { t } = useI18n({ useScope: 'global' })
 const connection = useConnectionStore()
 const roster = useTeamParticipants(() => props.open)
+const gameInfo = useGameInfo(
+  () => {
+    const flow = connection.gameflowSnapshot
+    const context = roster.snapshot.value?.context
+    if (
+      !props.open ||
+      !connection.isRealLcuConnected ||
+      !context ||
+      !flow?.connected ||
+      flow.source !== 'real' ||
+      flow.simulated ||
+      flow.code ||
+      flow.session?.sessionKey !== context.sessionKey ||
+      flow.session.connectionGeneration !== context.connectionGeneration
+    )
+      return null
+    return flow.session.modeContext
+  },
+  () => roster.snapshot.value?.accountKey,
+)
 const players = roster.players
 const rosterChanged = ref(false)
 const isStarting = ref(false)
 let copyGeneration = 0
 let startGeneration = 0
 let disposed = false
-const { isShuffling, hasResult, groupA, groupB, countdown, randomTime, start, dispose, reset } =
-  useTeamShuffle(() => players.value)
+const {
+  isShuffling,
+  hasResult,
+  groupA: frozenA,
+  groupB: frozenB,
+  countdown,
+  randomTime,
+  start,
+  dispose,
+  reset,
+} = useTeamShuffle(() => players.value)
+
+const resultFingerprint = ref('')
+const currentNames = computed(() => new Map(players.value.map((p) => [p.id, p.name])))
+const groupA = computed(() =>
+  frozenA.value.map((p) => ({ ...p, name: currentNames.value.get(p.id) ?? p.name })),
+)
+const groupB = computed(() =>
+  frozenB.value.map((p) => ({ ...p, name: currentNames.value.get(p.id) ?? p.name })),
+)
+const eligible = computed(
+  () =>
+    isSupportedTeamCount(players.value.length) &&
+    (!roster.isDesktop.value ||
+      (connection.isRealLcuConnected && roster.complete.value && !roster.errorCode.value)),
+)
+const resultValid = computed(
+  () =>
+    props.open &&
+    hasResult.value &&
+    eligible.value &&
+    resultFingerprint.value === roster.fingerprint.value,
+)
 
 const teamCaptureRef = ref<HTMLElement | null>(null)
 const isCopying = ref(false)
@@ -32,42 +85,37 @@ useModalFocus(() => props.open, drawerRef, requestClose)
 const canStart = computed(
   () =>
     props.open &&
+    eligible.value &&
     !isShuffling.value &&
     !isCopying.value &&
     !isStarting.value &&
-    !roster.isLoading.value &&
-    players.value.length >= 2 &&
-    (!roster.isDesktop.value ||
-      (connection.isRealLcuConnected &&
-        (roster.status.value === 'custom' ||
-          roster.status.value === 'party' ||
-          roster.status.value === 'champ_select') &&
-        !roster.errorCode.value)),
+    !roster.isLoading.value,
 )
 const canCopy = computed(
   () =>
+    resultValid.value &&
     !isShuffling.value &&
     !isCopying.value &&
     !isStarting.value &&
-    (!roster.isDesktop.value ||
-      (props.open &&
-        hasResult.value &&
-        connection.isRealLcuConnected &&
-        !roster.isLoading.value &&
-        !roster.errorCode.value)),
+    !roster.isLoading.value,
 )
 const rosterMessage = computed(() => {
   if (!roster.isDesktop.value) return t('team.demo')
   if (!connection.isRealLcuConnected) return t('team.connectFirst')
   if (roster.isLoading.value) return t('team.loadingPlayers')
   if (roster.errorCode.value === 'lcu.not_logged_in') return t('team.loginRequired')
+  if (
+    roster.errorCode.value === 'lcu.cancelled' ||
+    roster.errorCode.value === 'lcu.account_changed'
+  )
+    return t('team.playersChanged')
   if (roster.errorCode.value) return t('team.loadFailed')
-  if (roster.status.value === 'not_custom') return t('team.customOnly')
   if (roster.status.value === 'no_lobby') return t('team.noLobby')
-  if (players.value.length < 2) return t('team.needPlayers')
-  if (roster.status.value === 'party') return t('team.partyRoster')
-  if (roster.status.value === 'champ_select') return t('team.selectionRoster')
-  return t('team.realPlayers')
+  if (roster.status.value !== 'custom') return t('team.customOnly')
+  if (!roster.complete.value)
+    return t(`team.issues.${roster.snapshot.value?.issue ?? 'missing_context'}`)
+  if (!isSupportedTeamCount(players.value.length)) return t('team.needPlayers')
+  return ''
 })
 watch(
   roster.fingerprint,
@@ -88,6 +136,8 @@ watch(
       copyGeneration++
       isCopying.value = false
       rosterChanged.value = false
+      resultFingerprint.value = ''
+      reset()
     }
   },
 )
@@ -128,17 +178,18 @@ async function startRandomize() {
     const before = roster.fingerprint.value
     const attempt = ++startGeneration
     isStarting.value = true
-    const loaded = await roster.refresh()
+    const loaded = await roster.refreshFresh()
     if (disposed || attempt !== startGeneration) return
     isStarting.value = false
-    if (!loaded || !canStart.value) return
     if (before !== roster.fingerprint.value) {
       rosterChanged.value = true
       return
     }
+    if (!loaded || !canStart.value) return
   }
   rosterChanged.value = false
-  start()
+  resultFingerprint.value = roster.fingerprint.value
+  if (!start()) feedback.notify(t('team.drawFailed'), 'error')
 }
 
 async function copyTeamImage() {
@@ -156,9 +207,28 @@ async function copyTeamImage() {
 
   const request = ++copyGeneration
   isCopying.value = true
+  const expected = resultFingerprint.value
+  async function validateDelivery() {
+    if (
+      disposed ||
+      request !== copyGeneration ||
+      !resultValid.value ||
+      expected !== resultFingerprint.value
+    )
+      return false
+    if (roster.isDesktop.value && !(await roster.refreshFresh())) return false
+    return (
+      !disposed &&
+      request === copyGeneration &&
+      resultValid.value &&
+      expected === resultFingerprint.value
+    )
+  }
   try {
+    if (!(await validateDelivery())) return
     const result = await captureAndDeliverScreenshot(target, {
       fileNamePrefix: t('team.title'),
+      beforeDeliver: validateDelivery,
     })
     if (disposed || request !== copyGeneration || !props.open) return
     feedback.notify(
@@ -206,7 +276,6 @@ onUnmounted(() => {
           <h2 id="team-drawer-title" class="text-lg font-extrabold text-on-solid">
             {{ t('team.title') }}
           </h2>
-          <p class="mt-1 text-xs text-text-muted">{{ t('team.description') }}</p>
         </div>
         <button
           type="button"
@@ -220,12 +289,17 @@ onUnmounted(() => {
       </div>
 
       <div class="space-y-3">
-        <div class="flex items-center justify-between gap-2">
-          <p
-            :role="roster.errorCode.value ? 'alert' : 'status'"
-            class="text-xs leading-relaxed text-text-muted"
-          >
-            {{ rosterMessage }}
+        <div class="flex items-center justify-between gap-2 text-xs">
+          <p class="font-medium text-text-secondary">
+            {{ t('team.participants') }} ·
+            <span id="playerCount" class="text-text-subtle">{{
+              t(
+                roster.isDesktop.value && !roster.complete.value
+                  ? 'team.recognizedCount'
+                  : 'team.participantCount',
+                { count: players.length },
+              )
+            }}</span>
           </p>
           <button
             v-if="roster.isDesktop.value"
@@ -248,17 +322,12 @@ onUnmounted(() => {
           {{ t('team.playersChanged') }}
         </p>
         <p
-          v-if="roster.isDesktop.value && players.length >= 2 && players.length % 2"
-          class="text-xs text-text-muted"
+          v-if="rosterMessage"
+          :role="roster.errorCode.value ? 'alert' : 'status'"
+          class="text-xs leading-relaxed text-text-muted"
         >
-          {{ t('team.oddPlayers') }}
+          {{ rosterMessage }}
         </p>
-        <div class="flex items-center justify-between text-xs">
-          <span class="font-medium text-text-secondary">{{ t('team.participants') }}</span>
-          <span id="playerCount" class="text-text-subtle">{{
-            t('team.participantCount', { count: players.length })
-          }}</span>
-        </div>
 
         <div
           id="teamCaptureArea"
@@ -266,6 +335,13 @@ onUnmounted(() => {
           data-screenshot-root
           class="space-y-3 rounded-2xl border border-on-solid/5 bg-drawer p-3"
         >
+          <div v-if="hasResult" class="space-y-1 text-xs text-text-secondary">
+            <p id="team-result-meta" class="break-words font-semibold">
+              {{ gameInfo.gameTypeLabel }} · {{ groupA.length }}v{{ groupB.length }} ·
+              {{ gameInfo.mapLabel }}
+            </p>
+            <p v-if="!roster.isDesktop.value">{{ t('team.demo') }}</p>
+          </div>
           <div
             id="teamContainer"
             class="flex min-h-[220px] items-center justify-center rounded-2xl border border-on-solid/5 bg-surface-sunken/60 p-4 transition-all duration-300"
@@ -288,12 +364,12 @@ onUnmounted(() => {
               class="relative z-floating grid w-full grid-cols-2 gap-4 divide-x divide-on-solid/5"
             >
               <div class="space-y-3 pr-2">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="flex items-center gap-1.5 font-bold text-info">
-                    <span class="h-2 w-2 rounded-full bg-info"></span>
+                <div class="flex items-center justify-between gap-1 text-xs">
+                  <span class="flex items-center gap-1.5 whitespace-nowrap font-bold text-info">
+                    <span class="hidden h-2 w-2 rounded-full bg-info min-[420px]:block"></span>
                     {{ t('team.groupA') }}
                   </span>
-                  <span class="text-[11px] text-text-subtle">{{
+                  <span class="text-[11px] whitespace-nowrap text-text-subtle">{{
                     t('team.groupCount', { count: groupA.length })
                   }}</span>
                 </div>
@@ -310,12 +386,12 @@ onUnmounted(() => {
               </div>
 
               <div class="space-y-3 pl-4">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="flex items-center gap-1.5 font-bold text-danger">
-                    <span class="h-2 w-2 rounded-full bg-danger"></span>
+                <div class="flex items-center justify-between gap-1 text-xs">
+                  <span class="flex items-center gap-1.5 whitespace-nowrap font-bold text-danger">
+                    <span class="hidden h-2 w-2 rounded-full bg-danger min-[420px]:block"></span>
                     {{ t('team.groupB') }}
                   </span>
-                  <span class="text-[11px] text-text-subtle">{{
+                  <span class="text-[11px] whitespace-nowrap text-text-subtle">{{
                     t('team.groupCount', { count: groupB.length })
                   }}</span>
                 </div>

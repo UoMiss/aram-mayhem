@@ -7,6 +7,7 @@ const id = (value: unknown): value is string =>
 export const isHistoryMatch = object<LcuHistoryMatch>({
   id,
   queueId: nullable(unsigned),
+  mapId: nullable(positive),
   gameMode: nullable(string),
   gameType: nullable(string),
   createdAt: (value): value is number => positive(value) && value <= 8.64e15,
@@ -30,6 +31,4 @@ export const isHistorySnapshot = object<MatchHistorySnapshot>({
     value.length <= 20 &&
     new Set(value.map((item) => item.id)).size === value.length,
   updatedAt: unsigned,
-  nextOffset: (value): value is number | null | undefined =>
-    value == null || (unsigned(value) && value >= 20 && value <= 980 && value % 20 === 0),
 })

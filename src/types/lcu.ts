@@ -57,7 +57,9 @@ export type GameflowTransport = 'websocket' | 'polling' | 'disconnected'
 export interface LobbySnapshot {
   lobbyId: string | null
   queueId: number | null
+  mapId: number | null
   gameMode: string | null
+  isCustomGame?: boolean | null
   memberCount: number | null
   updatedAt: number
 }
@@ -79,7 +81,16 @@ export interface ChampionSelectSnapshot {
   updatedAt: number
 }
 
+export interface ModeContext {
+  queueId: number | null
+  mapId: number | null
+  gameMode: string | null
+  isCustomGame: boolean | null
+  source: 'lobby' | 'gameflow'
+}
+
 export interface GameSessionContext {
+  modeContext: ModeContext | null
   sessionKey: string
   gameId?: string | null
   game?: LobbySnapshot | null
@@ -92,7 +103,10 @@ export interface GameSessionContext {
   snapshotComplete: boolean
 }
 
+export type ReadyCheckStatus = 'waiting' | 'accepting' | 'accepted' | 'declined' | 'failed'
+
 export interface GameflowSnapshot {
+  readyCheckStatus: ReadyCheckStatus | null
   revision: number
   updatedAt: number
   connected: boolean

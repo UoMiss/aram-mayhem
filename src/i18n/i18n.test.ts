@@ -44,7 +44,7 @@ describe('zh-CN i18n resource', () => {
     expect(t('team.groupCount', { count: 4 })).toBe('4 人')
     expect(t('team.shuffling', { count: 3 })).toBe('组队中 3s')
     expect(t('team.revealing')).toBe('揭晓中...')
-    expect(t('settings.updateLatest')).toBe('已是最新版本！')
+    expect(t('settings.upToDate')).toBe('当前已是最新正式版本。')
     expect(t('rules.none')).toBe('未选择规则')
     expect(t('matchDetail.teams.red')).toBe('我方失败')
     expect(t('matchDetail.stats.taken')).toBe('承伤')

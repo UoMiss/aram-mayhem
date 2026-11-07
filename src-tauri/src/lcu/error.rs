@@ -17,6 +17,8 @@ pub enum LcuErrorCode {
     Cancelled,
     NotLoggedIn,
     AccountChanged,
+    SettlementPending,
+    SettlementUnavailable,
     Internal,
 }
 
@@ -35,6 +37,8 @@ impl LcuErrorCode {
             Self::Cancelled => "cancelled",
             Self::NotLoggedIn => "not_logged_in",
             Self::AccountChanged => "account_changed",
+            Self::SettlementPending => "settlement_pending",
+            Self::SettlementUnavailable => "settlement_unavailable",
             Self::Internal => "internal",
         }
     }

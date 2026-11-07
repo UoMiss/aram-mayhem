@@ -9,10 +9,14 @@ import type { HistoryFilter, MatchHistoryItem } from '@/types/history'
 import type { LcuHistoryMatch } from '@/types/history-api'
 import { useUiStore } from './ui'
 
+export const HISTORY_MATCH_LIMIT = 20
+
 export const useHistoryStore = defineStore('history', () => {
   const ui = useUiStore()
   const isDesktop = isTauri()
-  const matchHistory = shallowRef<readonly MatchHistoryItem[]>(isDesktop ? [] : MATCH_HISTORY)
+  const matchHistory = shallowRef<readonly MatchHistoryItem[]>(
+    isDesktop ? [] : MATCH_HISTORY.slice(0, HISTORY_MATCH_LIMIT),
+  )
   const realMatches = shallowRef<readonly LcuHistoryMatch[]>([])
   const historyFilter = ref<HistoryFilter>('all')
   const selectedMatchId = ref<string | null>(null)
@@ -20,9 +24,6 @@ export const useHistoryStore = defineStore('history', () => {
     () => matchHistory.value.find((item) => item.id === selectedMatchId.value) ?? null,
   )
   const liveSettlement = shallowRef<{ gameId: string; accountKey: string } | null>(null)
-  const nextOffset = ref<number | null>(null)
-  const loadingMore = ref(false)
-  const moreError = ref(false)
   const isLoading = ref(false)
   const hasLoaded = ref(!isDesktop)
   const errorCode = ref<string | null>(null)
@@ -33,7 +34,6 @@ export const useHistoryStore = defineStore('history', () => {
   function cancelRequest() {
     generation++
     isLoading.value = false
-    loadingMore.value = false
     pending = null
   }
   function clearRealHistory() {
@@ -41,8 +41,6 @@ export const useHistoryStore = defineStore('history', () => {
     if (isDesktop) {
       matchHistory.value = []
       realMatches.value = []
-      nextOffset.value = null
-      moreError.value = false
       hasLoaded.value = false
       selectedMatchId.value = null
       liveSettlement.value = null
@@ -50,19 +48,13 @@ export const useHistoryStore = defineStore('history', () => {
       errorCode.value = null
     }
   }
-  function loadHistory(append = false): Promise<void> {
+  function loadHistory(): Promise<void> {
     if (pending) return pending
-    const offset = append ? nextOffset.value : 0
-    if (offset === null) return Promise.resolve()
     const request = ++generation
-    const priorAccount = accountKey.value
     isLoading.value = true
-    loadingMore.value = append
-    moreError.value = false
     errorCode.value = null
-    if (isDesktop && !append) {
+    if (isDesktop) {
       hasLoaded.value = false
-      nextOffset.value = null
       matchHistory.value = []
       realMatches.value = []
       selectedMatchId.value = null
@@ -71,40 +63,32 @@ export const useHistoryStore = defineStore('history', () => {
     }
     pending = (async () => {
       try {
-        const result = await getMatchHistory(offset)
+        const result = await getMatchHistory()
         if (request !== generation) return
         if (isDesktop && result.source !== 'real')
           throw new LcuServiceError('lcu.invalid_response', 'Unexpected history source')
         if (result.source === 'real') {
-          if (append && result.snapshot.accountKey !== priorAccount) {
-            throw new LcuServiceError('lcu.account_changed', 'History account changed')
-          }
-          const rows = append
-            ? [...realMatches.value, ...result.snapshot.matches]
-            : result.snapshot.matches
-          realMatches.value = [...new Map(rows.map((row) => [row.id, row])).values()].sort(
-            (left, right) => right.createdAt - left.createdAt,
+          realMatches.value = [
+            ...new Map(result.snapshot.matches.map((row) => [row.id, row])).values(),
+          ]
+            .sort((left, right) => right.createdAt - left.createdAt)
+            .slice(0, HISTORY_MATCH_LIMIT)
+          matchHistory.value = realMatches.value.map((match) =>
+            toHistoryItem(match, result.snapshot.accountKey),
           )
-          matchHistory.value = realMatches.value.map(toHistoryItem)
-          nextOffset.value = result.snapshot.nextOffset ?? null
           accountKey.value = result.snapshot.accountKey
         } else {
-          matchHistory.value = result.matches
+          matchHistory.value = result.matches.slice(0, HISTORY_MATCH_LIMIT)
         }
         hasLoaded.value = true
       } catch (error) {
         if (request !== generation) return
         const code = normalizeLcuError(error, 'lcu.history_failed').code
-        if (append && code !== 'lcu.account_changed' && code !== 'lcu.not_logged_in') {
-          moreError.value = true
-        } else {
-          clearRealHistory()
-          errorCode.value = code
-        }
+        clearRealHistory()
+        errorCode.value = code
       } finally {
         if (request === generation) {
           isLoading.value = false
-          loadingMore.value = false
           pending = null
         }
       }
@@ -143,9 +127,6 @@ export const useHistoryStore = defineStore('history', () => {
     errorCode,
     accountKey,
     loadHistory,
-    nextOffset,
-    loadingMore,
-    moreError,
     cancelRequest,
     clearRealHistory,
     setHistoryFilter,

@@ -3,34 +3,17 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLogo from '@/components/common/AppLogo.vue'
 import { useConnectionStore } from '@/stores/connection'
-import { useSettingsStore } from '@/stores/settings'
 import { connectionErrorKey } from './errors'
+import { CONNECTION_STATUS_KEYS } from '@/i18n/labels'
 
 const connection = useConnectionStore()
-const settings = useSettingsStore()
 const { t } = useI18n({ useScope: 'global' })
 
 const statusText = computed(() => {
   if (!connection.isDesktopRuntime)
     return t(connection.isConnecting ? 'connection.connecting' : 'connection.waiting')
 
-  switch (connection.lcuStatus?.status) {
-    case 'not_running':
-      return t('connection.notRunning')
-    case 'connecting':
-    case 'reconnecting':
-      return t('connection.connecting')
-    case 'disconnected':
-      return t('connection.disconnected')
-    case 'error':
-      return t('connection.error')
-    case 'unsupported_platform':
-      return t('connection.unsupported')
-    case 'connected':
-      return t('connection.connected')
-    default:
-      return t('connection.discovering')
-  }
+  return t(CONNECTION_STATUS_KEYS[connection.lcuStatus?.status ?? 'discovering'])
 })
 
 const unsupported = computed(() => connection.lcuStatus?.status === 'unsupported_platform')
@@ -99,15 +82,7 @@ const errorText = computed(() => {
           <p v-if="errorText" role="alert" class="text-danger-light">{{ errorText }}</p>
           <p v-if="connection.isDesktopRuntime" class="text-[10px] text-text-subtle">
             <span aria-hidden="true">$</span>
-            {{
-              t(
-                unsupported
-                  ? 'connection.unsupportedIntro'
-                  : settings.settings.autoRetry
-                    ? 'connection.autoDetect'
-                    : 'connection.manualDetect',
-              )
-            }}
+            {{ t(unsupported ? 'connection.unsupportedIntro' : 'connection.autoDetect') }}
             <span
               class="terminal-cursor font-bold text-success motion-reduce:animate-none"
               aria-hidden="true"

@@ -50,6 +50,8 @@ describe('history API page', () => {
     expect(page.text()).toContain('12/4/18')
     expect(page.text()).not.toContain('演示数据')
     expect(page.text()).not.toContain('当前账号')
+    expect(page.text()).toContain('最近 20 局')
+    expect(page.findAll('button').some((button) => button.text().includes('加载更多'))).toBe(false)
     await page.get('[data-filter="custom"]').trigger('click')
     expect(page.text()).toContain('当前筛选下没有对局')
     await page.get('[data-filter="all"]').trigger('click')

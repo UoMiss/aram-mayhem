@@ -12,6 +12,7 @@ import { useUiStore } from '@/stores/ui'
 import { LcuServiceError } from '@/services/desktop-error'
 import { connectedStatus, homeFlow, testHomeSnapshot } from '../../../tests/fixtures/home-contract'
 import { testHistorySnapshot, TEST_HISTORY_MATCH } from '../../../tests/fixtures/history-contract'
+import { formatMatchTime } from '@/shared/lib/history-presentation'
 import { HOME_REFRESH_MS } from './useHomeData'
 const api = vi.hoisted(() => ({ load: vi.fn(), history: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
@@ -45,6 +46,59 @@ afterEach(() => {
   vi.useRealTimers()
 })
 describe('real home page', () => {
+  it.each([
+    ['none', '暂无对局'],
+    ['lobby', '房间中'],
+    ['matchmaking', '匹配中'],
+    ['ready_check', '等待确认'],
+    ['champ_select', '英雄选择中'],
+    ['game_start', '对局启动中'],
+    ['in_progress', '对局进行中'],
+    ['reconnect', '等待重连'],
+    ['waiting_for_stats', '等待结算'],
+    ['pre_end_of_game', '等待结算'],
+    ['end_of_game', '对局已结束'],
+    ['terminated_in_error', '对局已中断'],
+    ['unknown', '状态暂不可用'],
+  ] as const)('shows the recommended %s phase label', async (phase, label) => {
+    useConnectionStore(pinia).setGameflowSnapshot(homeFlow({ revision: 2, phase }))
+    const page = render()
+    await flushPromises()
+    expect(page.get('[aria-labelledby="home-current-match"] [role="status"]').text()).toBe(label)
+  })
+
+  it('shows only native ready-check feedback and clears it on phase exit or disconnect', async () => {
+    const connection = useConnectionStore(pinia)
+    connection.setGameflowSnapshot(homeFlow({ revision: 2, phase: 'ready_check' }))
+    const page = render()
+    await flushPromises()
+    expect(page.text()).not.toContain('已接受，等待其他玩家')
+    let revision = 2
+    for (const [readyCheckStatus, label] of [
+      ['waiting', '请在客户端确认对局'],
+      ['accepting', '正在接受对局'],
+      ['accepted', '已接受，等待其他玩家'],
+      ['failed', '未能自动接受，请手动确认'],
+      ['declined', '已拒绝本次对局'],
+    ] as const) {
+      connection.setGameflowSnapshot(
+        homeFlow({ revision: ++revision, phase: 'ready_check', readyCheckStatus }),
+      )
+      await flushPromises()
+      expect(page.text()).toContain(label)
+    }
+    connection.setGameflowSnapshot(
+      homeFlow({ revision: ++revision, phase: 'champ_select', readyCheckStatus: 'accepted' }),
+    )
+    await flushPromises()
+    expect(page.text()).not.toContain('已接受，等待其他玩家')
+    connection.setGameflowSnapshot(
+      homeFlow({ revision: ++revision, phase: 'ready_check', readyCheckStatus: 'accepted' }),
+    )
+    connection.setLcuStatus(connectedStatus({ revision: 2, status: 'disconnected' }))
+    await flushPromises()
+    expect(page.text()).not.toContain('已接受，等待其他玩家')
+  })
   it('shows the current account, level, live room and actual mode without demo data', async () => {
     let resolve!: (value: unknown) => void
     api.load.mockReturnValueOnce(
@@ -62,10 +116,15 @@ describe('real home page', () => {
     expect(page.text()).toContain('房间人数')
     expect(page.text()).toContain('3 人')
     expect(page.text()).toContain('海克斯')
+    expect(page.text()).toContain('地图')
+    expect(page.text()).toContain('游戏类型')
+    expect(page.text()).toContain('待客户端确认')
     expect(page.text()).not.toContain('峡谷小米')
     expect(page.text()).not.toContain('演示数据')
-    expect(page.text()).toContain('最近 5 局')
-    expect(page.text()).toContain('20:04')
+    expect(page.text()).toContain('近期对局')
+    expect(page.text()).toContain(formatMatchTime(TEST_HISTORY_MATCH.createdAt))
+    expect(page.find('li').text()).not.toContain('20:04')
+    expect(page.find('li').text()).not.toContain('待客户端确认')
     expect(page.text()).toContain('12 / 4 / 18')
     expect(page.findAll('li button')).toHaveLength(1)
     useConnectionStore(pinia).setGameflowSnapshot(

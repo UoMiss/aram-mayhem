@@ -7,6 +7,7 @@ export function testSettlement(overrides: Partial<SettlementSnapshot> = {}): Set
     id: TEST_SETTLEMENT_ID,
     accountKey: TEST_SETTLEMENT_ACCOUNT,
     queueId: 2400,
+    mapId: null,
     gameMode: 'ARAM',
     gameType: 'MATCHED_GAME',
     createdAt: 1793760000000,

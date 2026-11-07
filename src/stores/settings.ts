@@ -9,20 +9,35 @@ export const useSettingsStore = defineStore('settings', () => {
   const initial = createDefaultSettings()
   const desktop = isTauri()
   const stored = desktop ? readLocalData(key) : null
-  if (desktop) initial.autoStart = false
   if (stored && typeof stored === 'object') {
-    if ('autoRetry' in stored && typeof stored.autoRetry === 'boolean')
-      initial.autoRetry = stored.autoRetry
-    if ('soundEffects' in stored && typeof stored.soundEffects === 'boolean')
-      initial.soundEffects = stored.soundEffects
+    if ('autoAccept' in stored && typeof stored.autoAccept === 'boolean')
+      initial.autoAccept = stored.autoAccept
   }
+  // Rewrite legacy preferences so removed switches cannot affect connection behavior.
+  if (desktop && stored) writeLocalData(key, initial)
   const settings = ref<SettingsFlags>(initial)
+  const autoAcceptReady = ref(!desktop)
+  let initializingAutoAccept: Promise<void> | null = null
+  function initializeAutoAccept(): Promise<void> {
+    if (autoAcceptReady.value) return Promise.resolve()
+    if (initializingAutoAccept) return initializingAutoAccept
+    initializingAutoAccept = (async () => {
+      const { tauriSettingsAdapter } = await import('@/adapters/tauri.adapter')
+      settings.value.autoAccept = await tauriSettingsAdapter.setAutoAccept(
+        settings.value.autoAccept,
+      )
+      autoAcceptReady.value = true
+    })().finally(() => {
+      initializingAutoAccept = null
+    })
+    return initializingAutoAccept
+  }
   function setSetting(keyName: SettingKey, value: boolean) {
     settings.value[keyName] = value
     if (desktop) {
-      const { autoRetry, soundEffects } = settings.value
-      writeLocalData(key, { autoRetry, soundEffects })
+      const { autoAccept } = settings.value
+      writeLocalData(key, { autoAccept })
     }
   }
-  return { settings, setSetting }
+  return { settings, setSetting, autoAcceptReady, initializeAutoAccept }
 })

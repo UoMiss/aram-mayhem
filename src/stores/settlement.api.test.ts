@@ -6,6 +6,7 @@ import {
   TEST_SETTLEMENT_ID,
 } from '../../tests/fixtures/settlement-contract'
 import type { SettlementRequest } from '@/types/settlement-api'
+import { LcuServiceError } from '@/services/desktop-error'
 const api = vi.hoisted(() => ({ load: vi.fn() }))
 vi.mock('@/services/settlement.service', () => ({ getSettlement: api.load }))
 import { useSettlementStore } from './settlement'
@@ -21,6 +22,46 @@ beforeEach(() => {
 })
 afterEach(() => disposePinia(pinia))
 describe('settlement request scope', () => {
+  it('distinguishes loading, post-game pending, historical missing, request failure and completion', async () => {
+    const store = useSettlementStore(pinia)
+    expect(store.status).toBe('idle')
+    let finish!: (value: unknown) => void
+    api.load.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const pending = store.load(request, true)
+    expect(store.status).toBe('loading')
+    const partial = testSettlement({ rankingStatus: 'missing_damage' })
+    partial.players = partial.players.map((player) => ({
+      ...player,
+      damage: null,
+      rank: null,
+      ruleValue: null,
+    }))
+    finish({ source: 'real', snapshot: partial })
+    await pending
+    expect(store.status).toBe('pending')
+    api.load.mockResolvedValueOnce({
+      source: 'real',
+      snapshot: partial,
+    })
+    await store.load(request)
+    expect(store.status).toBe('unavailable')
+    for (const [code, status] of [
+      ['settlement_pending', 'pending'],
+      ['settlement_unavailable', 'unavailable'],
+      ['timeout', 'error'],
+    ] as const) {
+      api.load.mockRejectedValueOnce(new LcuServiceError(`lcu.${code}`, 'sanitized'))
+      await store.load(request, true)
+      expect(store.status).toBe(status)
+    }
+    api.load.mockResolvedValueOnce({ source: 'real', snapshot: testSettlement() })
+    await store.load(request, true)
+    expect(store.status).toBe('complete')
+  })
   it('coalesces the same request and discards late responses after switching games', async () => {
     const store = useSettlementStore(pinia)
     let resolve!: (value: unknown) => void

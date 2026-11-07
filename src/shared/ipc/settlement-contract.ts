@@ -32,6 +32,7 @@ const snapshot = object<SettlementSnapshot>({
   id: (value): value is string => exact(value) && value !== '0',
   accountKey: (value): value is string => string(value) && /^[A-Za-z0-9_-]{1,128}$/.test(value),
   queueId: nullable(unsigned),
+  mapId: nullable(positive),
   gameMode: nullable(string),
   gameType: nullable(string),
   createdAt: (value): value is number => positive(value) && value <= 8.64e15,
