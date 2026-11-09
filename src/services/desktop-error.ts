@@ -34,6 +34,9 @@ const LCU_ERROR_MESSAGES: Record<string, string> = {
   account_changed: '账号已切换，请重新加载',
   settlement_pending: '本局赛后数据尚未就绪',
   settlement_unavailable: '客户端未提供该局战绩数据',
+  size_record_invalid: '本地开奖记录无法核验',
+  size_storage_failed: '本地开奖记录保存失败',
+  size_random_failed: '系统随机源不可用',
   internal: '客户端连接失败，请重试',
 }
 

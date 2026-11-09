@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, ref, shallowRef } from 'vue'
 import { isTauri } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
-import { MATCH_HISTORY } from '@/mocks/history'
+import { demoHistory } from '@/mocks/client-demo'
 import { getMatchHistory } from '@/services/history.service'
 import { normalizeLcuError, LcuServiceError } from '@/services/desktop-error'
 import { toHistoryItem } from '@/shared/lib/history-presentation'
@@ -14,8 +14,9 @@ export const HISTORY_MATCH_LIMIT = 20
 export const useHistoryStore = defineStore('history', () => {
   const ui = useUiStore()
   const isDesktop = isTauri()
+  const initialDemo = isDesktop ? null : demoHistory()
   const matchHistory = shallowRef<readonly MatchHistoryItem[]>(
-    isDesktop ? [] : MATCH_HISTORY.slice(0, HISTORY_MATCH_LIMIT),
+    initialDemo?.matches.map((match) => toHistoryItem(match, initialDemo.accountKey)) ?? [],
   )
   const realMatches = shallowRef<readonly LcuHistoryMatch[]>([])
   const historyFilter = ref<HistoryFilter>('all')
@@ -27,7 +28,7 @@ export const useHistoryStore = defineStore('history', () => {
   const isLoading = ref(false)
   const hasLoaded = ref(!isDesktop)
   const errorCode = ref<string | null>(null)
-  const accountKey = ref<string | null>(null)
+  const accountKey = ref<string | null>(initialDemo?.accountKey ?? null)
   let generation = 0
   let pending: Promise<void> | null = null
 
@@ -38,48 +39,40 @@ export const useHistoryStore = defineStore('history', () => {
   }
   function clearRealHistory() {
     cancelRequest()
-    if (isDesktop) {
-      matchHistory.value = []
-      realMatches.value = []
-      hasLoaded.value = false
-      selectedMatchId.value = null
-      liveSettlement.value = null
-      accountKey.value = null
-      errorCode.value = null
-    }
+    matchHistory.value = []
+    realMatches.value = []
+    hasLoaded.value = false
+    selectedMatchId.value = null
+    liveSettlement.value = null
+    accountKey.value = null
+    errorCode.value = null
   }
   function loadHistory(): Promise<void> {
     if (pending) return pending
     const request = ++generation
     isLoading.value = true
     errorCode.value = null
-    if (isDesktop) {
-      hasLoaded.value = false
-      matchHistory.value = []
-      realMatches.value = []
-      selectedMatchId.value = null
-      liveSettlement.value = null
-      accountKey.value = null
-    }
+    hasLoaded.value = false
+    matchHistory.value = []
+    realMatches.value = []
+    selectedMatchId.value = null
+    liveSettlement.value = null
+    accountKey.value = null
     pending = (async () => {
       try {
         const result = await getMatchHistory()
         if (request !== generation) return
         if (isDesktop && result.source !== 'real')
           throw new LcuServiceError('lcu.invalid_response', 'Unexpected history source')
-        if (result.source === 'real') {
-          realMatches.value = [
-            ...new Map(result.snapshot.matches.map((row) => [row.id, row])).values(),
-          ]
-            .sort((left, right) => right.createdAt - left.createdAt)
-            .slice(0, HISTORY_MATCH_LIMIT)
-          matchHistory.value = realMatches.value.map((match) =>
-            toHistoryItem(match, result.snapshot.accountKey),
-          )
-          accountKey.value = result.snapshot.accountKey
-        } else {
-          matchHistory.value = result.matches.slice(0, HISTORY_MATCH_LIMIT)
-        }
+        realMatches.value = [
+          ...new Map(result.snapshot.matches.map((row) => [row.id, row])).values(),
+        ]
+          .sort((left, right) => right.createdAt - left.createdAt)
+          .slice(0, HISTORY_MATCH_LIMIT)
+        matchHistory.value = realMatches.value.map((match) =>
+          toHistoryItem(match, result.snapshot.accountKey),
+        )
+        accountKey.value = result.snapshot.accountKey
         hasLoaded.value = true
       } catch (error) {
         if (request !== generation) return

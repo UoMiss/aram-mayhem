@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useMatchLifecycle } from '@/composables/useMatchLifecycle'
+import BrowserDemoControls from '@/features/demo/BrowserDemoControls.vue'
 import AppShell from '@/components/layout/AppShell.vue'
 import AppToast from '@/components/feedback/AppToast.vue'
 import ConnectionScreen from '@/features/connection/ConnectionScreen.vue'
@@ -95,7 +96,7 @@ async function subscribeFlow() {
   }
 }
 
-// Silent startup probes: health, connection and gameflow. No test-only UI is rendered.
+// Silent startup probes: health, connection and gameflow. Desktop has no demo controls.
 onMounted(() => {
   void getAppHealth()
     .then((health) => {
@@ -159,5 +160,6 @@ onUnmounted(() => {
     <AppShell v-if="connection.isConnected" />
     <ConnectionScreen v-else />
     <AppToast />
+    <BrowserDemoControls v-if="!connection.isDesktopRuntime" />
   </div>
 </template>

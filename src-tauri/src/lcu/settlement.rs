@@ -16,8 +16,9 @@ pub enum SettlementRule {
     Damage,
     Tail,
     Lucky,
+    DamageSize,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettlementPlayer {
     pub id: String,
@@ -32,16 +33,25 @@ pub struct SettlementPlayer {
     pub deaths: u32,
     pub assists: u32,
     // Exact integers cross IPC as strings, including values above JS safe integer range.
-    #[serde(serialize_with = "serialize_exact")]
+    #[serde(
+        serialize_with = "serialize_exact",
+        deserialize_with = "deserialize_exact"
+    )]
     pub damage: Option<u64>,
-    #[serde(serialize_with = "serialize_exact")]
+    #[serde(
+        serialize_with = "serialize_exact",
+        deserialize_with = "deserialize_exact"
+    )]
     pub taken: Option<u64>,
-    #[serde(serialize_with = "serialize_exact")]
+    #[serde(
+        serialize_with = "serialize_exact",
+        deserialize_with = "deserialize_exact"
+    )]
     pub healing: Option<u64>,
     pub rank: Option<u32>,
     pub rule_value: Option<String>,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettlementSnapshot {
     pub id: String,
@@ -54,7 +64,9 @@ pub struct SettlementSnapshot {
     pub duration_seconds: u32,
     pub applied_rule: Option<SettlementRule>,
     pub is_custom: bool,
-    pub ranking_status: &'static str,
+    pub ranking_status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub damage_size: Option<super::damage_size::SizeResult>,
     pub lucky_digit: Option<u8>,
     pub locked_rule: bool,
     pub players: Vec<SettlementPlayer>,
@@ -104,6 +116,20 @@ fn text(value: &Value, key: &str) -> Option<String> {
 fn serialize_exact<S: Serializer>(value: &Option<u64>, serializer: S) -> Result<S::Ok, S::Error> {
     value.map(|n| n.to_string()).serialize(serializer)
 }
+fn deserialize_exact<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<u64>, D::Error> {
+    let value = Option::<String>::deserialize(deserializer)?;
+    value
+        .map(|value| {
+            let parsed = value.parse::<u64>().map_err(serde::de::Error::custom)?;
+            if value != parsed.to_string() {
+                return Err(serde::de::Error::custom("Noncanonical exact integer"));
+            }
+            Ok(parsed)
+        })
+        .transpose()
+}
 fn exact(value: &Value, key: &str) -> Result<Option<u64>, LcuError> {
     match value.get(key) {
         None | Some(Value::Null) => Ok(None),
@@ -111,7 +137,7 @@ fn exact(value: &Value, key: &str) -> Result<Option<u64>, LcuError> {
     }
 }
 
-fn is_custom_match(value: &Value) -> bool {
+pub(super) fn is_custom_match(value: &Value) -> bool {
     match value.get("gameType").and_then(Value::as_str) {
         Some(game_type) if !game_type.is_empty() => game_type == "CUSTOM_GAME",
         _ => value.get("queueId").and_then(Value::as_u64) == Some(0),
@@ -132,7 +158,7 @@ pub(super) fn friend_puuids(value: &Value) -> Option<HashSet<String>> {
         .collect()
 }
 
-fn parse_settlement(
+pub(super) fn parse_settlement(
     value: &Value,
     expected_id: &str,
     account: &str,
@@ -188,7 +214,9 @@ fn parse_settlement(
             !is_self && friends.is_some_and(|friends| puuid.is_some_and(|id| friends.contains(id)));
         own_count += usize::from(is_self);
         let team_id = number(participant, "teamId")?;
-        if !matches!(team_id, 100 | 200) {
+        if team_id == 0
+            || (rule != Some(SettlementRule::DamageSize) && !matches!(team_id, 100 | 200))
+        {
             return Err(invalid());
         }
         let champion_id = number(participant, "championId")?;
@@ -239,7 +267,11 @@ fn parse_settlement(
     if own_count != 1 {
         return Err(invalid());
     }
-    for team_id in [100, 200] {
+    for team_id in if rule == Some(SettlementRule::DamageSize) {
+        Vec::new()
+    } else {
+        vec![100, 200]
+    } {
         let team = players
             .iter()
             .filter(|player| player.team_id == team_id)
@@ -255,6 +287,7 @@ fn parse_settlement(
         .filter(|player| is_custom || player.is_self || player.is_friend)
         .collect::<Vec<_>>();
     let ranking_status = match rule {
+        Some(SettlementRule::DamageSize) => "not_applicable",
         None => "no_rule",
         Some(SettlementRule::Lucky) if lucky_digit.is_none() => "missing_lucky",
         Some(_) if !is_custom && friends.is_none() => "missing_friends",
@@ -309,7 +342,8 @@ fn parse_settlement(
         duration_seconds: number(value, "gameDuration")?,
         applied_rule: rule,
         is_custom,
-        ranking_status,
+        ranking_status: ranking_status.into(),
+        damage_size: None,
         lucky_digit,
         locked_rule: false,
         players,
@@ -322,6 +356,12 @@ pub trait SettlementSource: Send + Sync {
     async fn profile(&self) -> Result<Value, LcuError>;
     async fn detail(&self, id: &str) -> Result<Value, LcuError>;
     async fn friends(&self) -> Result<Value, LcuError>;
+    async fn human(&self, _puuid: &str) -> Result<bool, LcuError> {
+        Ok(false)
+    }
+    async fn verify_client(&self) -> Result<(), LcuError> {
+        Ok(())
+    }
 }
 pub async fn load_settlement(
     source: &impl SettlementSource,
@@ -399,6 +439,32 @@ impl SystemSettlementSource {
 }
 #[async_trait]
 impl SettlementSource for SystemSettlementSource {
+    async fn verify_client(&self) -> Result<(), LcuError> {
+        if discover()?.as_ref() != Some(&self.client) {
+            return Err(LcuError::new(LcuErrorCode::Cancelled, "Client changed"));
+        }
+        Ok(())
+    }
+    async fn human(&self, puuid: &str) -> Result<bool, LcuError> {
+        if !super::damage_size::valid_identity(puuid) {
+            return Ok(false);
+        }
+        let profile = self
+            .http
+            .get_json_optional(
+                &self.client,
+                &format!("/lol-summoner/v2/summoners/puuid/{puuid}"),
+            )
+            .await?;
+        Ok(profile.as_ref().is_some_and(|profile| {
+            profile_identity(profile).ok() == Some(puuid)
+                && profile
+                    .get("summonerId")
+                    .and_then(Value::as_u64)
+                    .is_some_and(|id| id > 0)
+        }))
+    }
+
     async fn profile(&self) -> Result<Value, LcuError> {
         self.http
             .get_json_optional(&self.client, "/lol-summoner/v1/current-summoner")
@@ -436,6 +502,13 @@ mod tests {
     };
     const ID: &str = "18446744073709551615";
     const ACCOUNT: &str = "test-current-account";
+    #[test]
+    fn damage_size_is_a_non_ranking_rule() {
+        let rule: SettlementRule = serde_json::from_str("\"damage_size\"").expect("fourth rule");
+        let result = parse_settlement(&fixture(), ID, ACCOUNT, Some(rule), None, None).unwrap();
+        assert!(result.players.iter().all(|player| player.rank.is_none()));
+        assert_eq!(result.ranking_status, "not_applicable");
+    }
     fn fixture() -> Value {
         let mut value: Value =
             serde_json::from_str(include_str!("../../../tests/fixtures/lcu-settlement.json"))

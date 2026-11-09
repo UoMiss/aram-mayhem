@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { HOME_GAME_MODE_KEYS, HOME_ROOM_PHASE_KEYS, SCORE_RULE_NAME_KEYS } from '@/i18n/labels'
+import { HOME_ROOM_PHASE_KEYS, SCORE_RULE_NAME_KEYS } from '@/i18n/labels'
 import { useConnectionStore } from '@/stores/connection'
 import { useHistoryStore } from '@/stores/history'
 import { useHomeStore } from '@/stores/home'
 import { useMatchRulesStore } from '@/stores/match-rules'
 import { useRulesStore } from '@/stores/rules'
 import RecentMatchCard from './components/RecentMatchCard.vue'
-import { HOME_RECENT_MATCH_LIMIT, useHomeData } from './useHomeData'
+import { useHomeData } from './useHomeData'
 import type { HomeRecentMatch } from './useHomeData'
 
 const connection = useConnectionStore()
@@ -37,9 +37,6 @@ const roomPhaseLabel = computed(() => {
   if (phase === 'none') return t('home.noMatch')
   return phase ? t(HOME_ROOM_PHASE_KEYS[phase]) : t('home.statusUnavailable')
 })
-const gameModeLabel = computed(() =>
-  home.homeView.gameMode ? t(HOME_GAME_MODE_KEYS[home.homeView.gameMode]) : null,
-)
 const errorText = computed(() =>
   t(
     home.errorCode === 'lcu.not_logged_in'
@@ -49,19 +46,12 @@ const errorText = computed(() =>
         : 'home.loadFailed',
   ),
 )
-const recentMatches = computed<readonly HomeRecentMatch[]>(() => {
-  if (!connection.isDesktopRuntime) {
-    return history.matchHistory.slice(0, HOME_RECENT_MATCH_LIMIT).map((match) => ({ match }))
-  }
-  return recent.value.status === 'ready' ? recent.value.entries : []
-})
-
+const recentMatches = computed<readonly HomeRecentMatch[]>(() =>
+  recent.value.status === 'ready' ? recent.value.entries : [],
+)
 function openRecent(matchId: string) {
-  if (!connection.isDesktopRuntime) {
-    history.openMatchDetail(matchId)
-  } else if (recent.value.status === 'ready' && home.snapshot && connection.isRealLcuConnected) {
+  if (recent.value.status === 'ready' && home.snapshot && connection.canReadAccountData)
     history.openLiveSettlement(matchId, home.snapshot.accountKey)
-  }
 }
 </script>
 
@@ -114,7 +104,7 @@ function openRecent(matchId: string) {
       </div>
 
       <button
-        v-if="connection.isRealLcuConnected && !home.errorCode"
+        v-if="connection.canReadAccountData && !home.errorCode"
         type="button"
         :aria-label="t('home.refresh')"
         :title="t('home.refresh')"
@@ -177,7 +167,7 @@ function openRecent(matchId: string) {
             {{ t('gameInfo.gameType') }}
           </dt>
           <dd class="min-w-0 break-words text-right text-sm font-semibold text-text-soft">
-            {{ connection.isDesktopRuntime ? home.gameInfo.gameTypeLabel : gameModeLabel }}
+            {{ home.gameInfo.gameTypeLabel }}
           </dd>
         </div>
         <div

@@ -19,6 +19,9 @@ pub enum LcuErrorCode {
     AccountChanged,
     SettlementPending,
     SettlementUnavailable,
+    SizeRecordInvalid,
+    SizeStorageFailed,
+    SizeRandomFailed,
     Internal,
 }
 
@@ -39,6 +42,9 @@ impl LcuErrorCode {
             Self::AccountChanged => "account_changed",
             Self::SettlementPending => "settlement_pending",
             Self::SettlementUnavailable => "settlement_unavailable",
+            Self::SizeRecordInvalid => "size_record_invalid",
+            Self::SizeStorageFailed => "size_storage_failed",
+            Self::SizeRandomFailed => "size_random_failed",
             Self::Internal => "internal",
         }
     }

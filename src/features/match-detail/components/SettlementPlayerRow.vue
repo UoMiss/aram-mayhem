@@ -6,10 +6,15 @@ import type { SettlementLayout, SettlementPlayer, StatTone } from '@/types/match
 
 const { t } = useI18n({ useScope: 'global' })
 
-const props = defineProps<{
-  player: SettlementPlayer
-  layout: SettlementLayout
-}>()
+const props = withDefaults(
+  defineProps<{
+    player: SettlementPlayer
+    layout: SettlementLayout
+    showRank?: boolean
+    highlightTeam?: boolean
+  }>(),
+  { showRank: true, highlightTeam: true },
+)
 
 const toneClasses: Record<StatTone, { bar: string }> = {
   rose: { bar: 'bg-danger-bright' },
@@ -56,7 +61,10 @@ const relationTag = computed(() =>
     :class="
       layout === 'group'
         ? 'last:border-0'
-        : ['border-l-4 transition-colors last:border-b-0', teamTone.border, teamTone.tint]
+        : [
+            'border-l-4 transition-colors last:border-b-0',
+            highlightTeam ? [teamTone.border, teamTone.tint] : 'border-l-transparent',
+          ]
     "
   >
     <div class="mr-3 flex w-[46px] shrink-0 flex-col items-center">
@@ -81,7 +89,11 @@ const relationTag = computed(() =>
           {{ player.level }}
         </div>
       </div>
-      <div class="player-rank" :class="player.rank === null ? undefined : `rank-${player.rank}`">
+      <div
+        v-if="showRank"
+        class="player-rank"
+        :class="player.rank === null ? undefined : `rank-${player.rank}`"
+      >
         {{ player.rank === null ? '—' : `#${player.rank}` }}
       </div>
     </div>
@@ -119,20 +131,22 @@ const relationTag = computed(() =>
       </div>
     </div>
 
-    <div
-      v-if="player.score !== null"
-      class="w-[45px] shrink-0 text-right font-mono text-xl font-ink"
-      :class="teamTone.score"
+    <slot name="result"
+      ><div
+        v-if="player.score !== null"
+        class="w-[45px] shrink-0 text-right font-mono text-xl font-ink"
+        :class="teamTone.score"
+      >
+        {{ player.score.toFixed(1) }}
+      </div>
+      <div
+        v-else-if="player.ruleValue != null"
+        class="w-[54px] shrink-0 break-all text-right font-mono text-xs"
+        :class="teamTone.score"
+        :title="t('matchDetail.ruleValue')"
+      >
+        {{ player.ruleValue }}
+      </div></slot
     >
-      {{ player.score.toFixed(1) }}
-    </div>
-    <div
-      v-else-if="player.ruleValue != null"
-      class="w-[54px] shrink-0 break-all text-right font-mono text-xs"
-      :class="teamTone.score"
-      :title="t('matchDetail.ruleValue')"
-    >
-      {{ player.ruleValue }}
-    </div>
   </div>
 </template>

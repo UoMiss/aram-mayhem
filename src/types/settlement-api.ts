@@ -6,7 +6,7 @@ export interface SettlementRequest {
 }
 export interface LcuSettlementPlayer {
   id: string
-  teamId: 100 | 200
+  teamId: number
   championId: number
   level: number | null
   nickname: string | null
@@ -33,9 +33,38 @@ export interface SettlementSnapshot {
   durationSeconds: number
   appliedRule: ScoreRuleSelection
   isCustom: boolean
-  rankingStatus: 'ready' | 'no_rule' | 'missing_damage' | 'missing_lucky' | 'missing_friends'
+  damageSize?: DamageSizeResult
+  rankingStatus:
+    'not_applicable' | 'ready' | 'no_rule' | 'missing_damage' | 'missing_lucky' | 'missing_friends'
   luckyDigit: number | null
   lockedRule: boolean
   players: LcuSettlementPlayer[]
   updatedAt: number
+}
+
+export type SizeOutcome = 'big' | 'small'
+export type SizeReason =
+  | 'missing_damage'
+  | 'missing_friends'
+  | 'identity_unverified'
+  | 'end_unverified'
+  | 'invalid_match'
+  | 'unsupported_count'
+  | 'unlocked'
+  | 'data_conflict'
+  | 'current_game_active'
+export interface SizeParticipant {
+  id: string
+  identity: string
+  nickname: string | null
+  damage: string | null
+  group: SizeOutcome | null
+}
+export interface DamageSizeResult {
+  status: 'ready' | 'preview' | 'pending' | 'unsupported' | 'conflict'
+  reason: SizeReason | null
+  outcome: SizeOutcome | null
+  participants: SizeParticipant[]
+  redPacketPlayerIds: string[] | null
+  frozenAt: number | null
 }

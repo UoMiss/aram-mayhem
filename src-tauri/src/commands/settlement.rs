@@ -23,6 +23,40 @@ pub async fn lcu_get_settlement(
     validate_game_id(&game_id)?;
     let record = find_record(&window, &account_key, &game_id)?;
     let applied_rule = record.as_ref().map_or(rule, |record| record.rule);
+    if applied_rule == Some(SettlementRule::DamageSize) {
+        let initial = manager.snapshot();
+        let path = super::match_rules::record_path(&window, &account_key, &game_id)?
+            .with_extension("size-draw.json");
+        return crate::lcu::damage_size::load(
+            &SystemSettlementSource::connect()?,
+            &game_id,
+            &account_key,
+            record.is_some(),
+            &path,
+            || {
+                let (flow, account) = manager.roster_context();
+                flow.connected
+                    && flow.source == LcuSourceKind::Real
+                    && !flow.simulated
+                    && flow.code.is_none()
+                    && account.as_deref() == Some(&account_key)
+                    && flow.phase == Some(GameflowPhase::EndOfGame)
+                    && flow.session.as_ref().is_some_and(|session| {
+                        session.game_id.as_deref() == Some(&game_id)
+                            && session.phase == GameflowPhase::EndOfGame
+                            && initial.session.as_ref().is_some_and(|before| {
+                                before.session_key == session.session_key
+                                    && before.connection_generation == session.connection_generation
+                            })
+                    })
+            },
+        )
+        .await
+        .map_err(|error| {
+            let (flow, account) = manager.roster_context();
+            classify_detail_error(error, &flow, account.as_deref(), &account_key, &game_id)
+        });
+    }
     let mut snapshot = load_settlement(
         &SystemSettlementSource::connect()?,
         &game_id,

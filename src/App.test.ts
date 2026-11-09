@@ -1,3 +1,6 @@
+import { useSettlementStore } from './stores/settlement'
+import { useHistoryStore } from './stores/history'
+import { DEMO_ACCOUNT, demoHistory } from './mocks/client-demo'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { createSSRApp } from 'vue'
@@ -14,6 +17,13 @@ async function renderApp(setup?: (store: AppStore) => void) {
   setActivePinia(pinia)
   const store = useAppStore(pinia)
   setup?.(store)
+  const history = useHistoryStore(pinia)
+  if (store.activeTab === 'match-detail' && history.selectedMatchId)
+    await useSettlementStore(pinia).load({
+      accountKey: DEMO_ACCOUNT,
+      gameId: history.selectedMatchId,
+      rule: store.currentRule,
+    })
 
   const app = createSSRApp(App)
   app.use(pinia)
@@ -59,7 +69,9 @@ describe('App shell rendering', () => {
     expect(html).toContain('id="page-home"')
     expect(html).toContain('峡谷小米')
     expect(html).toContain('房间中')
-    expect(html).toContain('匹配模式')
+    expect(html).toContain('自定义')
+    expect(html).toContain('嚎哭深渊')
+    expect(html).toContain('等级 128')
     expect(html).toMatch(/id="home-rule-text"[^>]*>纯伤害规则</)
     expect(html).toContain('当前对局')
     expect(html).toContain('近期对局')
@@ -79,7 +91,7 @@ describe('App shell rendering', () => {
     expect(html).toMatch(/id="home-rule-text"[^>]*>伤害尾数规则</)
   })
 
-  it('renders all seven original history cards', async () => {
+  it('renders twenty client-shaped history cards', async () => {
     const { html } = await renderApp((store) => {
       store.connect()
       vi.advanceTimersByTime(CONNECT_DELAY_MS)
@@ -88,36 +100,25 @@ describe('App shell rendering', () => {
 
     expect(html).toContain('id="page-history"')
     expect(html).toContain('仅显示最近 20 局 · 点击查看结算')
-    expect(historyIds(html)).toEqual([
-      'match-001',
-      'match-002',
-      'match-003',
-      'match-004',
-      'match-005',
-      'match-006',
-      'match-007',
-    ])
-    expect(html).toContain('Zeri')
-    expect(html).toContain('18/13/22')
-    expect(html).toContain('9小时前')
+    expect(historyIds(html)).toEqual(demoHistory().matches.map((match) => match.id))
+    expect(html).toContain('伊泽瑞尔')
+    expect(html).toContain('8/5/14')
     expect(html).toContain('海克斯大乱斗')
     expect(html).toContain('自定义')
   })
 
-  it('filters history to five hex matches and two custom matches', async () => {
+  it('filters history to hex and custom matches', async () => {
     const hex = await renderApp((store) => {
       store.connect()
       vi.advanceTimersByTime(CONNECT_DELAY_MS)
       store.setActiveTab('history')
       store.setHistoryFilter('hex')
     })
-    expect(historyIds(hex.html)).toEqual([
-      'match-001',
-      'match-002',
-      'match-003',
-      'match-004',
-      'match-005',
-    ])
+    expect(historyIds(hex.html)).toEqual(
+      demoHistory()
+        .matches.filter((m) => m.queueId === 2400)
+        .map((m) => m.id),
+    )
 
     const custom = await renderApp((store) => {
       store.connect()
@@ -125,7 +126,11 @@ describe('App shell rendering', () => {
       store.setActiveTab('history')
       store.setHistoryFilter('custom')
     })
-    expect(historyIds(custom.html)).toEqual(['match-006', 'match-007'])
+    expect(historyIds(custom.html)).toEqual(
+      demoHistory()
+        .matches.filter((m) => m.queueId === 0)
+        .map((m) => m.id),
+    )
   })
 
   it('records a clicked history id before opening match detail', async () => {
@@ -133,34 +138,34 @@ describe('App shell rendering', () => {
       store.connect()
       vi.advanceTimersByTime(CONNECT_DELAY_MS)
       store.setActiveTab('history')
-      store.openMatchDetail('match-004')
+      store.openMatchDetail('9000004')
     })
 
-    expect(store.selectedMatchId).toBe('match-004')
-    expect(store.selectedMatch?.champion).toBe('Neeko')
+    expect(store.selectedMatchId).toBe('9000004')
+    expect(store.selectedMatch?.champion).toBe('德莱厄斯')
     expect(store.activeTab).toBe('match-detail')
     expect(html).toContain('对局结算')
   })
 
-  it('renders the shared match-detail fixture with both layouts and copy action', async () => {
+  it('renders the selected match through the client settlement view', async () => {
     const { html } = await renderApp((store) => {
       store.connect()
       vi.advanceTimersByTime(CONNECT_DELAY_MS)
-      store.setActiveTab('match-detail')
+      store.openMatchDetail('9000001')
     })
 
     expect(html).toContain('对局结算')
-    expect(html).toContain('自定义 (屠夫之桥)')
-    expect(html).toContain('24:48')
+    expect(html).toContain('自定义')
+    expect(html).toContain('20:00')
     expect(html).toContain('发红包名单')
-    expect(html).toContain('本局最后 5 名，请准备好你们的红包！')
-    expect(html).toContain('分组模式')
+    expect(html).toContain('本局最后 3 名')
+    expect(html).toContain('分组排行')
     expect(html).toContain('全局排行')
-    expect(html).toContain('我方失败')
-    expect(html).toContain('敌方胜利')
-    expect(html).toContain('Ezreal#60943')
-    expect(html).toContain('翻斗花园牛爷爷#70976')
-    expect(html).toContain('13.5')
+    expect(html).toContain('蓝方 · 失败')
+    expect(html).toContain('红方 · 胜利')
+    expect(html).toContain('峡谷小米')
+    expect(html).toContain('洞爷湖')
+    expect(html).toContain('39,617')
     expect(html).toContain('id="screenshot-area"')
     expect(html).toContain('id="copyBtn"')
     expect(html).toContain('复制截图')
@@ -192,9 +197,7 @@ describe('App shell rendering', () => {
     expect(html).toContain('复制图片')
     expect(html).toContain('id="teamDrawer"')
     expect(html).toContain('id="teamCaptureArea"')
-    expect(html).toContain('洞爷湖')
-    expect(html).toContain('黛乃奈昭姿')
-    expect(html).toContain('奢谨筱箅栗')
+    expect(html).toContain('刷新名单')
   })
 
   it('renders the settings page with defaults, version and update action', async () => {

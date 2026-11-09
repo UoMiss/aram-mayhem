@@ -1,3 +1,4 @@
+import { isRuntimeFlow, isRuntimeSource } from '@/services/runtime-source'
 import { onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getHomeSnapshot } from '@/services/home.service'
@@ -134,7 +135,7 @@ export function useMatchLifecycle() {
       let accountKey: string
       if (activeGame?.id === gameId) {
         const result = await getHomeSnapshot()
-        if (result.source !== 'real') return
+        if (!isRuntimeSource(result.source)) return
         accountKey = result.snapshot.accountKey
         if (activeGame?.accountKey && activeGame.accountKey !== accountKey) return
       } else {
@@ -165,7 +166,7 @@ export function useMatchLifecycle() {
   watch(
     () => [connection.canReadAccountData, connection.isAccountInvalidated] as const,
     ([connected, accountInvalidated]) => {
-      if (connection.isDesktopRuntime && (!connected || accountInvalidated)) {
+      if (!connected || accountInvalidated) {
         // Clear display state and invalidate in-flight reads, never the native rule book.
         home.clearRealHome()
         history.clearRealHistory()
@@ -196,8 +197,7 @@ export function useMatchLifecycle() {
         !connected ||
         !snapshot?.connected ||
         snapshot.revision <= disconnectedRevision ||
-        snapshot.source !== 'real' ||
-        snapshot.simulated ||
+        !isRuntimeFlow(snapshot) ||
         snapshot.code
       )
         return

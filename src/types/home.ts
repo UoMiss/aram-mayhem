@@ -2,7 +2,7 @@ import type { GameflowPhase } from './lcu'
 import type { MatchMode } from './history'
 
 /** 原始 HTML 中首页展示的算分规则集合。 */
-export type ScoreRule = 'damage' | 'lucky' | 'tail'
+export type ScoreRule = 'damage' | 'lucky' | 'tail' | 'damage_size'
 
 /** 规则可以被关闭；关闭后首页显示“未选择规则”。 */
 export type ScoreRuleSelection = ScoreRule | null

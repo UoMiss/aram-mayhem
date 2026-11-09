@@ -11,7 +11,11 @@ export const useRulesStore = defineStore('rules', () => {
   const savedRule =
     stored && typeof stored === 'object' && 'rule' in stored ? stored.rule : undefined
   const currentRule = ref<ScoreRuleSelection>(
-    savedRule === null || savedRule === 'damage' || savedRule === 'tail' || savedRule === 'lucky'
+    savedRule === null ||
+      savedRule === 'damage' ||
+      savedRule === 'tail' ||
+      savedRule === 'lucky' ||
+      savedRule === 'damage_size'
       ? savedRule
       : INITIAL_SCORE_RULE,
   )

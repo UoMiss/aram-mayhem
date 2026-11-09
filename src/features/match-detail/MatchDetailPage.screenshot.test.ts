@@ -18,6 +18,7 @@ import {
   testSettlement,
 } from '../../../tests/fixtures/settlement-contract'
 import MatchDetailPage from './MatchDetailPage.vue'
+import { testDamageSize } from '../../../tests/fixtures/damage-size-contract'
 
 const api = vi.hoisted(() => ({ desktop: true, load: vi.fn(), render: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => api.desktop }))
@@ -180,6 +181,7 @@ it('copies normally once, prevents duplicate clicks and emits only one success n
     }),
   )
   const page = await render()
+  expect(page.findAll('.player-rank').length).toBeGreaterThan(0)
   await page.get('#copyBtn').trigger('click')
   await flushPromises()
   await page.get('#copyBtn').trigger('click')
@@ -282,16 +284,20 @@ it('reports a genuine render failure once without delivering', async () => {
   expect(page.get('#copyBtn').attributes('disabled')).toBeUndefined()
 })
 
-it('keeps browser demo screenshots functional without a native account context', async () => {
+it('keeps browser demo screenshots functional with an explicit mock account context', async () => {
   disposePinia(pinia)
   api.desktop = false
+  api.load.mockResolvedValue({ source: 'mock', snapshot: testSettlement() })
   pinia = createPinia()
+  useConnectionStore(pinia).connectionPhase = 'connected'
+  useHistoryStore(pinia).openLiveSettlement(TEST_SETTLEMENT_ID, TEST_SETTLEMENT_ACCOUNT)
+  useRulesStore(pinia).setCurrentRule('tail')
   vi.spyOn(useFeedbackStore(pinia), 'notify')
   useUiStore(pinia).setActiveTab('match-detail')
   const page = await render()
   await page.get('#copyBtn').trigger('click')
   await flushPromises()
-  expect(api.load).not.toHaveBeenCalled()
+  expect(api.load).toHaveBeenCalledOnce()
   expect(write).toHaveBeenCalledOnce()
   expect(useFeedbackStore(pinia).notify).toHaveBeenCalledExactlyOnceWith(
     '截图已复制到剪贴板',
@@ -330,3 +336,90 @@ it('does not let an old capture clear the busy state or deliver over a new captu
   expect(write).toHaveBeenCalledOnce()
   expect(useFeedbackStore(pinia).notify).toHaveBeenCalledTimes(1)
 })
+
+it.each(['big', 'small'] as const)(
+  'captures the %s size result including zero/all senders without ranks',
+  async (outcome) => {
+    api.load.mockResolvedValue({ source: 'real', snapshot: testDamageSize(outcome) })
+    const page = await render()
+    const area = page.get('#screenshot-area')
+    expect(area.get('[data-size-senders]').text()).toContain(
+      outcome === 'big' ? '本局 2 人发红包' : '本局无人需要发红包',
+    )
+    expect(area.findAll('[data-player-id]')).toHaveLength(2)
+    expect(area.findAll('[data-player-id] img')).toHaveLength(2)
+    expect(area.findAll('[data-player-relation]').map((tag) => tag.text())).toEqual(
+      expect.arrayContaining(['我', '友']),
+    )
+    expect(area.find('.player-rank').exists()).toBe(false)
+    expect(area.get('[data-size-senders]').text()).toContain('发红包名单')
+    expect(area.get('[data-size-senders]').text()).not.toContain('最后')
+    expect(area.text()).not.toContain('#1')
+    expect(area.text()).toContain('18,446,744,073,709,551,615')
+    expect(page.get('#btn-layout-group').attributes('aria-pressed')).toBe('true')
+    expect(page.get('#btn-layout-group').text()).toContain('分组排行')
+    expect(page.get('#btn-layout-global').text()).toContain('全局排行')
+    expect(page.get('#layout-group').findAll('[data-team-section]')).toHaveLength(2)
+    expect(page.get('#layout-group').text()).not.toMatch(/胜利|失败/)
+    const senders = area.get('[data-size-senders]').text()
+    const ids = area
+      .findAll('[data-player-id]')
+      .map((row) => row.attributes('data-player-id'))
+      .sort()
+    await page.get('#btn-layout-global').trigger('click')
+    expect(page.get('#btn-layout-global').attributes('aria-pressed')).toBe('true')
+    expect(page.find('#layout-group').exists()).toBe(false)
+    expect(
+      page
+        .get('#layout-global')
+        .findAll('[data-player-id]')
+        .map((row) => row.attributes('data-player-id'))
+        .sort(),
+    ).toEqual(ids)
+    expect(area.get('[data-size-senders]').text()).toBe(senders)
+    expect(area.find('.player-rank').exists()).toBe(false)
+    await page.get('#copyBtn').trigger('click')
+    await flushPromises()
+    expect(write).toHaveBeenCalledOnce()
+  },
+)
+it('keeps nontraditional teams separate without inventing red or blue sides', async () => {
+  const snapshot = testDamageSize('big')
+  snapshot.players.forEach((player, index) => {
+    player.teamId = index + 1
+  })
+  api.load.mockResolvedValue({ source: 'real', snapshot })
+  const page = await render()
+  expect(
+    page
+      .get('#layout-group')
+      .findAll('[data-team-section]')
+      .map((section) => section.attributes('data-team-section')),
+  ).toEqual(['队伍 1', '队伍 2'])
+  await page.get('#btn-layout-global').trigger('click')
+  expect(page.get('#layout-global').findAll('[data-player-id]')).toHaveLength(2)
+  expect(
+    page.get('#layout-global').find('.border-l-info-bright, .border-l-danger-bright').exists(),
+  ).toBe(false)
+})
+
+it.each(['leave', 'account', 'unmount', 'layout'] as const)(
+  'cancels a size result screenshot after %s',
+  async (change) => {
+    api.load.mockResolvedValue({ source: 'real', snapshot: testDamageSize('small') })
+    let finish!: (value: unknown) => void
+    api.render.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const page = await render()
+    await page.get('#copyBtn').trigger('click')
+    await flushPromises()
+    await invalidate(change)
+    finish(canvas())
+    await flushPromises()
+    expect(write).not.toHaveBeenCalled()
+    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
+  },
+)

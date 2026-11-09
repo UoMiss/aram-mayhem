@@ -22,6 +22,7 @@ describe('tools mock', () => {
       { key: 'damage', icon: 'fa-solid fa-fire' },
       { key: 'lucky', icon: 'fa-solid fa-dice' },
       { key: 'tail', icon: 'fa-solid fa-list-ol' },
+      { key: 'damage_size', icon: 'fa-solid fa-dice-two' },
     ])
   })
 })

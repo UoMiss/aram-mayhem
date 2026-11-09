@@ -126,7 +126,7 @@ async function changeSetting(key: SettingKey, value: boolean) {
           {{ message }}
         </p>
         <p
-          v-if="snapshot.notes"
+          v-if="snapshot.notes && snapshot.notes !== message"
           class="max-h-36 overflow-y-auto whitespace-pre-wrap break-words text-text-muted"
         >
           {{ snapshot.notes }}
@@ -204,7 +204,6 @@ async function changeSetting(key: SettingKey, value: boolean) {
         </DialogPortal>
       </DialogRoot>
       <button
-        v-if="native"
         type="button"
         data-action="release-page"
         :disabled="updateBusy || opening"

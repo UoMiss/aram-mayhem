@@ -14,6 +14,7 @@ export interface SettlementStat {
 
 export interface SettlementPlayer {
   id: string
+  teamId?: number
   team: TeamSide
   champion: string
   championImage: string
@@ -29,7 +30,7 @@ export interface SettlementPlayer {
 
 export interface RedPacketEntry {
   name: string
-  rank: number
+  rank: number | null
 }
 
 export interface RedPacketNotice {

@@ -19,6 +19,7 @@ export function settlementPlayers(
   )
   return snapshot.players.map((player) => ({
     id: player.id,
+    teamId: player.teamId,
     team: player.teamId === 100 ? 'blue' : 'red',
     champion: getChampionName(player.championId) ?? `#${player.championId}`,
     championImage: getChampionImage(player.championId),

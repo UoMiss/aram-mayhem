@@ -24,3 +24,5 @@ pub mod metadata;
 pub mod auto_accept;
 
 pub mod roster_integrity;
+
+pub mod damage_size;

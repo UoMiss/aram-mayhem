@@ -17,12 +17,14 @@ export const CONNECTION_STATUS_KEYS: Record<LcuConnectionStatus, string> = {
 
 export const SCORE_RULE_NAME_KEYS: Record<ScoreRule, string> = {
   damage: 'rules.damage.name',
+  damage_size: 'rules.damage_size.name',
   lucky: 'rules.lucky.name',
   tail: 'rules.tail.name',
 }
 
 export const SCORE_RULE_DESCRIPTION_KEYS: Record<ScoreRule, string> = {
   damage: 'rules.damage.description',
+  damage_size: 'rules.damage_size.description',
   lucky: 'rules.lucky.description',
   tail: 'rules.tail.description',
 }

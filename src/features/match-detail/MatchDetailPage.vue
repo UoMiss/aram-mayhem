@@ -2,10 +2,12 @@
 import { useGameInfo } from '@/composables/useGameInfo'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DamageSizeResult from './components/DamageSizeResult.vue'
+import SettlementLayoutToggle from './components/SettlementLayoutToggle.vue'
 import RedPacketNotice from '@/features/match-detail/components/RedPacketNotice.vue'
 import SettlementRanking from '@/features/match-detail/components/SettlementRanking.vue'
 import SettlementTeamSection from '@/features/match-detail/components/SettlementTeamSection.vue'
-import { MATCH_DETAIL_FIXTURE } from '@/mocks/match-detail'
+import { isRuntimeFlow } from '@/services/runtime-source'
 import { captureAndDeliverScreenshot } from '@/services/image.service'
 import { useUiStore } from '@/stores/ui'
 import { useFeedbackStore } from '@/stores/feedback'
@@ -26,8 +28,7 @@ const connection = useConnectionStore()
 const history = useHistoryStore()
 const rules = useRulesStore()
 const settlement = useSettlementStore()
-const fixture = computed(() => (connection.isDesktopRuntime ? null : MATCH_DETAIL_FIXTURE))
-const live = computed(() => (connection.isDesktopRuntime ? settlement.snapshot : null))
+const live = computed(() => settlement.snapshot)
 const active = computed(() => ui.activeTab === 'match-detail')
 const target = computed(() => {
   if (history.liveSettlement) return history.liveSettlement
@@ -45,8 +46,8 @@ const isCurrentPostGame = computed(() => {
   const flow = connection.gameflowSnapshot
   return (
     canLoad.value &&
-    flow?.source === 'real' &&
-    !flow.simulated &&
+    flow &&
+    isRuntimeFlow(flow) &&
     flow.connected &&
     !flow.code &&
     flow.session?.gameId === target.value?.gameId &&
@@ -79,7 +80,6 @@ onMounted(() => {
   watch(
     retryScope,
     () => {
-      if (!connection.isDesktopRuntime) return
       retries.value = 0
       if (canLoad.value) loadCurrent()
       else settlement.clear()
@@ -110,14 +110,10 @@ const recoveryText = computed(() => {
   if (live.value?.rankingStatus === 'missing_damage') return t('matchDetail.damageUnavailable')
   return null
 })
-const hasData = computed(() => live.value !== null || fixture.value !== null)
+const hasData = computed(() => live.value !== null)
 const gameInfo = useGameInfo(live, () => live.value?.accountKey)
-const queueLabel = computed(() =>
-  live.value ? gameInfo.value.gameTypeLabel : (fixture.value?.queueLabel ?? ''),
-)
-const duration = computed(() =>
-  live.value ? formatDuration(live.value.durationSeconds) : (fixture.value?.duration ?? ''),
-)
+const queueLabel = computed(() => (live.value ? gameInfo.value.gameTypeLabel : ''))
+const duration = computed(() => (live.value ? formatDuration(live.value.durationSeconds) : ''))
 const ruleLabel = computed(() =>
   live.value?.appliedRule ? t(SCORE_RULE_NAME_KEYS[live.value.appliedRule]) : t('rules.none'),
 )
@@ -143,6 +139,12 @@ const rankNote = computed(() => {
 })
 const errorText = computed(() => {
   switch (settlement.errorCode) {
+    case 'lcu.size_record_invalid':
+      return t('damageSize.recordInvalid')
+    case 'lcu.size_storage_failed':
+      return t('damageSize.storageFailed')
+    case 'lcu.size_random_failed':
+      return t('damageSize.randomFailed')
     case 'lcu.settlement_pending':
       return t('matchDetail.pending')
     case 'lcu.settlement_unavailable':
@@ -158,7 +160,7 @@ const errorText = computed(() => {
   }
 })
 function goBack() {
-  ui.setActiveTab(connection.isDesktopRuntime ? 'history' : 'home')
+  ui.setActiveTab('history')
 }
 
 const layout = ref<SettlementLayout>('group')
@@ -166,9 +168,7 @@ const isCopying = ref(false)
 const screenshotRef = ref<HTMLElement | null>(null)
 
 const players = computed(() =>
-  live.value
-    ? settlementPlayers(live.value, (id) => t('matchDetail.unknownPlayer', { id }))
-    : (fixture.value?.players ?? []),
+  live.value ? settlementPlayers(live.value, (id) => t('matchDetail.unknownPlayer', { id })) : [],
 )
 const redPackets = computed(() => {
   const result = live.value ? redPacketSelection(live.value) : null
@@ -209,13 +209,6 @@ onUnmounted(() => {
   settlement.clear()
 })
 
-function layoutButtonClass(target: SettlementLayout): string {
-  const base = 'flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer'
-  return layout.value === target
-    ? `${base} bg-brand-strong text-on-solid shadow-md shadow-brand-strong/30`
-    : `${base} text-text-muted hover:text-on-solid`
-}
-
 async function copyScreenshot() {
   if (isCopying.value || !hasData.value || !active.value) return
 
@@ -238,13 +231,12 @@ async function copyScreenshot() {
       screenshotRef.value === target &&
       live.value === captured &&
       layout.value === capturedLayout &&
-      (!connection.isDesktopRuntime ||
-        (canLoad.value &&
-          !settlement.isLoading &&
-          retryScope.value === scope &&
-          captured !== null &&
-          captured.accountKey === request.value?.accountKey &&
-          captured.id === request.value?.gameId))
+      canLoad.value &&
+      !settlement.isLoading &&
+      retryScope.value === scope &&
+      captured !== null &&
+      captured.accountKey === request.value?.accountKey &&
+      captured.id === request.value?.gameId
     )
   }
   isCopying.value = true
@@ -273,9 +265,7 @@ async function copyScreenshot() {
         <div class="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            :aria-label="
-              t(connection.isDesktopRuntime ? 'matchDetail.backHistory' : 'common.backHome')
-            "
+            :aria-label="t('matchDetail.backHistory')"
             class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-on-solid/5 bg-surface-raised/80 text-text-secondary transition-all hover:bg-brand-strong/30 active:scale-90"
             @click="goBack"
           >
@@ -329,14 +319,14 @@ async function copyScreenshot() {
         {{ recoveryText }}
       </p>
       <p
-        v-if="connection.isDesktopRuntime && settlement.isLoading"
+        v-if="settlement.isLoading"
         role="status"
         class="py-12 text-center text-sm text-text-muted"
       >
         {{ t('matchDetail.loading') }}
       </p>
       <div
-        v-else-if="connection.isDesktopRuntime && settlement.errorCode"
+        v-else-if="settlement.errorCode"
         :role="settlement.status === 'pending' ? 'status' : 'alert'"
         class="glass-card space-y-3 rounded-xl p-5 text-center"
       >
@@ -365,7 +355,10 @@ async function copyScreenshot() {
       <template v-else>
         <button
           v-if="
-            live?.rankingStatus === 'missing_friends' || live?.rankingStatus === 'missing_damage'
+            live?.rankingStatus === 'missing_friends' ||
+            live?.rankingStatus === 'missing_damage' ||
+            live?.damageSize?.status === 'pending' ||
+            live?.damageSize?.status === 'unsupported'
           "
           type="button"
           class="rounded-lg border border-on-solid/10 px-3 py-1.5 text-xs text-brand-light"
@@ -385,51 +378,41 @@ async function copyScreenshot() {
           data-screenshot-root
           class="space-y-3 rounded-xl border border-on-solid/5 bg-shell p-3"
         >
-          <div
-            v-if="luckyDigit !== null"
-            id="settlement-lucky-digit"
-            class="flex items-center gap-3 rounded-xl border border-brand-bright/40 bg-linear-to-r from-brand-strong/25 to-surface-raised px-4 py-3"
-          >
-            <i class="fa-solid fa-dice text-xl text-brand-light" aria-hidden="true"></i>
-            <span class="text-sm font-bold text-brand-soft">{{
-              t('matchDetail.luckyDrawLabel')
-            }}</span>
-            <strong
-              class="ml-auto grid size-12 place-items-center rounded-lg bg-brand-strong/35 font-ink text-3xl tabular-nums text-on-solid"
-            >
-              {{ luckyDigit }}
-            </strong>
-          </div>
-          <RedPacketNotice v-if="fixture" :entries="fixture.redPacket.entries" />
-          <RedPacketNotice
-            v-else-if="redPackets"
-            :entries="redPackets.entries"
-            :quota="redPackets.quota"
-            :preview="!lockedRule"
+          <DamageSizeResult
+            v-if="live?.damageSize"
+            v-model:layout="layout"
+            :result="live.damageSize"
+            :players="players"
           />
-          <div
-            class="glass-card overflow-hidden rounded-2xl border border-on-solid/5 screenshot-mode"
-          >
-            <div class="border-b border-on-solid/5 bg-surface-sunken/50 p-2">
-              <div class="flex rounded-xl border border-on-solid/5 bg-surface-base/50 p-1">
-                <button
-                  id="btn-layout-group"
-                  type="button"
-                  :aria-pressed="layout === 'group'"
-                  :class="layoutButtonClass('group')"
-                  @click="layout = 'group'"
-                >
-                  <i class="fa-solid fa-layer-group mr-1"></i> {{ t('matchDetail.group') }}
-                </button>
-                <button
-                  id="btn-layout-global"
-                  type="button"
-                  :aria-pressed="layout === 'global'"
-                  :class="layoutButtonClass('global')"
-                  @click="layout = 'global'"
-                >
-                  <i class="fa-solid fa-ranking-star mr-1"></i>
-                  {{
+          <template v-else>
+            <div
+              v-if="luckyDigit !== null"
+              id="settlement-lucky-digit"
+              class="flex items-center gap-3 rounded-xl border border-brand-bright/40 bg-linear-to-r from-brand-strong/25 to-surface-raised px-4 py-3"
+            >
+              <i class="fa-solid fa-dice text-xl text-brand-light" aria-hidden="true"></i>
+              <span class="text-sm font-bold text-brand-soft">{{
+                t('matchDetail.luckyDrawLabel')
+              }}</span>
+              <strong
+                class="ml-auto grid size-12 place-items-center rounded-lg bg-brand-strong/35 font-ink text-3xl tabular-nums text-on-solid"
+              >
+                {{ luckyDigit }}
+              </strong>
+            </div>
+            <RedPacketNotice
+              v-if="redPackets"
+              :entries="redPackets.entries"
+              :quota="redPackets.quota"
+              :preview="!lockedRule"
+            />
+            <div
+              class="glass-card overflow-hidden rounded-2xl border border-on-solid/5 screenshot-mode"
+            >
+              <div class="border-b border-on-solid/5 bg-surface-sunken/50 p-2">
+                <SettlementLayoutToggle
+                  v-model="layout"
+                  :global-label="
                     t(
                       live && live.rankingStatus !== 'ready'
                         ? 'matchDetail.allPlayers'
@@ -437,30 +420,32 @@ async function copyScreenshot() {
                           ? 'matchDetail.friendsRanking'
                           : 'matchDetail.global',
                     )
-                  }}
-                </button>
+                  "
+                />
+                <div class="space-y-1 px-2 text-[11px] text-text-muted">
+                  <p v-if="!connection.isDesktopRuntime" class="pt-2">
+                    {{ t('matchDetail.demo') }}
+                  </p>
+                  <p v-else-if="!lockedRule" class="pt-2">{{ t('rules.previewOnly') }}</p>
+                  <p v-if="rankNote" class="pt-2">{{ rankNote }}</p>
+                  <p v-if="live?.rankingStatus === 'ready' && !redPackets" class="pt-2">
+                    {{ t('matchDetail.redPacketCountUnsupported') }}
+                  </p>
+                </div>
               </div>
-              <div class="space-y-1 px-2 text-[11px] text-text-muted">
-                <p v-if="fixture" class="pt-2">{{ t('matchDetail.demo') }}</p>
-                <p v-else-if="!lockedRule" class="pt-2">{{ t('rules.previewOnly') }}</p>
-                <p v-if="rankNote" class="pt-2">{{ rankNote }}</p>
-                <p v-if="live?.rankingStatus === 'ready' && !redPackets" class="pt-2">
-                  {{ t('matchDetail.redPacketCountUnsupported') }}
-                </p>
+
+              <div v-show="layout === 'group'" id="layout-group" class="space-y-3 p-3">
+                <SettlementTeamSection side="red" :players="redPlayers" :win="redWin" />
+                <SettlementTeamSection side="blue" :players="bluePlayers" :win="blueWin" />
               </div>
-            </div>
 
-            <div v-show="layout === 'group'" id="layout-group" class="space-y-3 p-3">
-              <SettlementTeamSection side="red" :players="redPlayers" :win="redWin" />
-              <SettlementTeamSection side="blue" :players="bluePlayers" :win="blueWin" />
+              <SettlementRanking
+                v-show="layout === 'global'"
+                id="layout-global"
+                :players="globalPlayers"
+              />
             </div>
-
-            <SettlementRanking
-              v-show="layout === 'global'"
-              id="layout-global"
-              :players="globalPlayers"
-            />
-          </div>
+          </template>
         </div>
       </template>
     </div>

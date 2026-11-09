@@ -29,8 +29,8 @@ describe('app store', () => {
     expect(app.homeView).toEqual({
       isConnected: false,
       summonerName: '峡谷小米',
-      roomPhase: 'inRoom',
-      gameMode: 'normal',
+      roomPhase: null,
+      gameMode: null,
     })
   })
 
@@ -58,23 +58,17 @@ describe('app store', () => {
     expect(app.activeTab).toBe('home')
     expect(app.currentRule).toBe('damage')
     expect(app.homeView.summonerName).toBe('峡谷小米')
-    expect(app.homeView.roomPhase).toBe('inRoom')
-    expect(app.homeView.gameMode).toBe('normal')
+    expect(app.homeView.roomPhase).toBeNull()
+    expect(app.homeView.gameMode).toBeNull()
   })
 
-  it('starts with all seven history matches and no selected match', () => {
+  it('starts with twenty contract-shaped history matches and no selected match', () => {
     const app = useAppStore()
 
-    expect(app.matchHistory).toHaveLength(7)
-    expect(app.matchHistory.map((match) => match.id)).toEqual([
-      'match-001',
-      'match-002',
-      'match-003',
-      'match-004',
-      'match-005',
-      'match-006',
-      'match-007',
-    ])
+    expect(app.matchHistory).toHaveLength(20)
+    expect(app.matchHistory.map((match) => match.id)).toEqual(
+      Array.from({ length: 20 }, (_, i) => String(9000001 + i)),
+    )
     expect(app.historyFilter).toBe('all')
     expect(app.selectedMatchId).toBeNull()
     expect(app.selectedMatch).toBeNull()
@@ -97,10 +91,10 @@ describe('app store', () => {
   it('records the selected history id and opens match detail', () => {
     const app = useAppStore()
 
-    app.openMatchDetail('match-004')
+    app.openMatchDetail('9000004')
 
-    expect(app.selectedMatchId).toBe('match-004')
-    expect(app.selectedMatch?.champion).toBe('Neeko')
+    expect(app.selectedMatchId).toBe('9000004')
+    expect(app.selectedMatch?.champion).toBe('德莱厄斯')
     expect(app.activeTab).toBe('match-detail')
   })
 
@@ -120,7 +114,7 @@ describe('app store', () => {
     app.connect()
     vi.advanceTimersByTime(CONNECT_DELAY_MS)
     app.setHistoryFilter('custom')
-    app.openMatchDetail('match-007')
+    app.openMatchDetail('9000007')
 
     app.disconnect()
 

@@ -131,7 +131,14 @@ jobs:
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Verify updater signature and generate manifest
-        run: node scripts/updater-artifacts.mjs .
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ($version -match '-rc\.[1-9][0-9]*$') {
+            node scripts/updater-artifacts.mjs . --prerelease
+          } else {
+            node scripts/updater-artifacts.mjs .
+          }
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -192,5 +199,10 @@ jobs:
           fi
           cd installer
           tr -d '\r' < windows-installer.sha256 | sha256sum --check
+          release_flags=()
+          if [[ "$version" == *-* ]]; then
+            release_flags+=(--prerelease --latest=false)
+          fi
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            "${release_flags[@]}" \
             aram-mayhem-windows-x64-setup.exe windows-installer.sha256 aram-mayhem-windows-x64-setup.exe.sig latest.json

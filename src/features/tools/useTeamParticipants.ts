@@ -1,6 +1,6 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { TEAM_DRAW_PLAYERS } from '@/mocks/tools'
+import { isRuntimeFlow, isRuntimeSource } from '@/services/runtime-source'
 import { useConnectionStore } from '@/stores/connection'
 import { useHomeStore } from '@/stores/home'
 import { getCustomParticipants } from '@/services/participants.service'
@@ -15,13 +15,13 @@ export function useTeamParticipants(isOpen: () => boolean) {
   const home = useHomeStore()
   const { t } = useI18n({ useScope: 'global' })
   const isDesktop = computed(() => connection.isDesktopRuntime)
-  const active = computed(() => isOpen() && isDesktop.value && connection.isRealLcuConnected)
+  const active = computed(() => isOpen() && connection.canReadAccountData)
   const snapshot = shallowRef<ParticipantSnapshot | null>(null)
-  const players = shallowRef<readonly TeamPlayer[]>(isDesktop.value ? [] : TEAM_DRAW_PLAYERS)
+  const players = shallowRef<readonly TeamPlayer[]>([])
   const status = computed(() => snapshot.value?.status ?? null)
   const isLoading = ref(false)
   const errorCode = ref<string | null>(null)
-  const fingerprint = ref(isDesktop.value ? '' : 'browser-demo')
+  const fingerprint = ref('')
   const contextStamp = computed(() => {
     const flow = connection.gameflowSnapshot
     return JSON.stringify([
@@ -41,8 +41,7 @@ export function useTeamParticipants(isOpen: () => boolean) {
     const flow = connection.gameflowSnapshot
     return !!(
       flow?.connected &&
-      flow.source === 'real' &&
-      !flow.simulated &&
+      isRuntimeFlow(flow) &&
       !flow.code &&
       flow.phase === 'lobby' &&
       flow.session?.modeContext?.isCustomGame === true &&
@@ -72,10 +71,8 @@ export function useTeamParticipants(isOpen: () => boolean) {
     isLoading.value = false
     errorCode.value = null
     snapshot.value = null
-    if (isDesktop.value) {
-      players.value = []
-      fingerprint.value = ''
-    }
+    players.value = []
+    fingerprint.value = ''
   }
   function refresh(): Promise<boolean> {
     if (!active.value) return Promise.resolve(false)
@@ -89,7 +86,7 @@ export function useTeamParticipants(isOpen: () => boolean) {
       try {
         const result = await getCustomParticipants()
         if (request !== epoch || !active.value || context !== contextStamp.value) return false
-        if (result.source !== 'real' || !isParticipantSnapshot(result.snapshot))
+        if (!isRuntimeSource(result.source) || !isParticipantSnapshot(result.snapshot))
           throw new LcuServiceError('lcu.invalid_response', 'Invalid roster')
         const roster = result.snapshot
         if (roster.context && !matchesContext(roster))

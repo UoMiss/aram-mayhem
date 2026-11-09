@@ -58,7 +58,11 @@ fn draw_digit() -> Result<u8, LcuError> {
     }
 }
 
-fn record_path(window: &WebviewWindow, account: &str, game_id: &str) -> Result<PathBuf, LcuError> {
+pub(super) fn record_path(
+    window: &WebviewWindow,
+    account: &str,
+    game_id: &str,
+) -> Result<PathBuf, LcuError> {
     if account.is_empty()
         || account.len() > 128
         || !account

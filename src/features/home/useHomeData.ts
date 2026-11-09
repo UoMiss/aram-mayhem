@@ -1,3 +1,4 @@
+import { isRuntimeSource } from '@/services/runtime-source'
 import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { getMatchHistory } from '@/services/history.service'
 import { LcuServiceError, normalizeLcuError } from '@/services/desktop-error'
@@ -39,7 +40,7 @@ export function useHomeData() {
     try {
       const result = await getMatchHistory()
       if (request !== recentGeneration) return
-      if (result.source !== 'real')
+      if (!isRuntimeSource(result.source))
         throw new LcuServiceError('lcu.invalid_response', 'Unexpected history source')
       if (result.snapshot.accountKey !== accountKey)
         throw new LcuServiceError('lcu.account_changed', 'History account changed')
@@ -66,7 +67,7 @@ export function useHomeData() {
   }
 
   async function refresh() {
-    if (!active.value || !connection.isDesktopRuntime) return
+    if (!active.value) return
     clearTimeout(timer)
     const request = ++generation
     await home.loadHome()

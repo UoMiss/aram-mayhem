@@ -8,6 +8,7 @@ import { captureAndDeliverScreenshot } from '@/services/image.service'
 import { useFeedbackStore } from '@/stores/feedback'
 import { useTeamShuffle } from '@/features/tools/useTeamShuffle'
 import { isSupportedTeamCount } from '@/features/tools/teamRandomizer'
+import { isRuntimeFlow } from '@/services/runtime-source'
 import { useGameInfo } from '@/composables/useGameInfo'
 
 const props = defineProps<{ open: boolean }>()
@@ -23,11 +24,10 @@ const gameInfo = useGameInfo(
     const context = roster.snapshot.value?.context
     if (
       !props.open ||
-      !connection.isRealLcuConnected ||
+      !connection.canReadAccountData ||
       !context ||
       !flow?.connected ||
-      flow.source !== 'real' ||
-      flow.simulated ||
+      !isRuntimeFlow(flow) ||
       flow.code ||
       flow.session?.sessionKey !== context.sessionKey ||
       flow.session.connectionGeneration !== context.connectionGeneration
@@ -46,8 +46,8 @@ let disposed = false
 const {
   isShuffling,
   hasResult,
-  groupA: frozenA,
-  groupB: frozenB,
+  groupA: displayedA,
+  groupB: displayedB,
   countdown,
   randomTime,
   start,
@@ -58,16 +58,17 @@ const {
 const resultFingerprint = ref('')
 const currentNames = computed(() => new Map(players.value.map((p) => [p.id, p.name])))
 const groupA = computed(() =>
-  frozenA.value.map((p) => ({ ...p, name: currentNames.value.get(p.id) ?? p.name })),
+  displayedA.value.map((p) => ({ ...p, name: currentNames.value.get(p.id) ?? p.name })),
 )
 const groupB = computed(() =>
-  frozenB.value.map((p) => ({ ...p, name: currentNames.value.get(p.id) ?? p.name })),
+  displayedB.value.map((p) => ({ ...p, name: currentNames.value.get(p.id) ?? p.name })),
 )
 const eligible = computed(
   () =>
     isSupportedTeamCount(players.value.length) &&
-    (!roster.isDesktop.value ||
-      (connection.isRealLcuConnected && roster.complete.value && !roster.errorCode.value)),
+    connection.canReadAccountData &&
+    roster.complete.value &&
+    !roster.errorCode.value,
 )
 const resultValid = computed(
   () =>
@@ -100,8 +101,7 @@ const canCopy = computed(
     !roster.isLoading.value,
 )
 const rosterMessage = computed(() => {
-  if (!roster.isDesktop.value) return t('team.demo')
-  if (!connection.isRealLcuConnected) return t('team.connectFirst')
+  if (!connection.canReadAccountData) return t('team.connectFirst')
   if (roster.isLoading.value) return t('team.loadingPlayers')
   if (roster.errorCode.value === 'lcu.not_logged_in') return t('team.loginRequired')
   if (
@@ -128,9 +128,9 @@ watch(
   { flush: 'sync' },
 )
 watch(
-  () => [props.open, connection.isRealLcuConnected] as const,
+  () => [props.open, connection.canReadAccountData] as const,
   ([open, connected]) => {
-    if (!open || (roster.isDesktop.value && !connected)) {
+    if (!open || !connected) {
       startGeneration++
       isStarting.value = false
       copyGeneration++
@@ -174,19 +174,17 @@ function requestClose() {
 
 async function startRandomize() {
   if (!canStart.value) return
-  if (roster.isDesktop.value) {
-    const before = roster.fingerprint.value
-    const attempt = ++startGeneration
-    isStarting.value = true
-    const loaded = await roster.refreshFresh()
-    if (disposed || attempt !== startGeneration) return
-    isStarting.value = false
-    if (before !== roster.fingerprint.value) {
-      rosterChanged.value = true
-      return
-    }
-    if (!loaded || !canStart.value) return
+  const before = roster.fingerprint.value
+  const attempt = ++startGeneration
+  isStarting.value = true
+  const loaded = await roster.refreshFresh()
+  if (disposed || attempt !== startGeneration) return
+  isStarting.value = false
+  if (before !== roster.fingerprint.value) {
+    rosterChanged.value = true
+    return
   }
+  if (!loaded || !canStart.value) return
   rosterChanged.value = false
   resultFingerprint.value = roster.fingerprint.value
   if (!start()) feedback.notify(t('team.drawFailed'), 'error')
@@ -216,7 +214,7 @@ async function copyTeamImage() {
       expected !== resultFingerprint.value
     )
       return false
-    if (roster.isDesktop.value && !(await roster.refreshFresh())) return false
+    if (!(await roster.refreshFresh())) return false
     return (
       !disposed &&
       request === copyGeneration &&
@@ -293,16 +291,12 @@ onUnmounted(() => {
           <p class="font-medium text-text-secondary">
             {{ t('team.participants') }} ·
             <span id="playerCount" class="text-text-subtle">{{
-              t(
-                roster.isDesktop.value && !roster.complete.value
-                  ? 'team.recognizedCount'
-                  : 'team.participantCount',
-                { count: players.length },
-              )
+              t(!roster.complete.value ? 'team.recognizedCount' : 'team.participantCount', {
+                count: players.length,
+              })
             }}</span>
           </p>
           <button
-            v-if="roster.isDesktop.value"
             id="refreshTeamPlayers"
             type="button"
             :disabled="
@@ -310,7 +304,7 @@ onUnmounted(() => {
               isShuffling ||
               isStarting ||
               isCopying ||
-              !connection.isRealLcuConnected
+              !connection.canReadAccountData
             "
             class="shrink-0 rounded-lg border border-on-solid/10 px-2 py-1 text-xs text-brand-light disabled:opacity-50"
             @click="roster.refresh"
@@ -425,7 +419,7 @@ onUnmounted(() => {
           id="randomBtn"
           type="button"
           :disabled="!canStart"
-          :aria-busy="isStarting"
+          :aria-busy="isStarting || isShuffling"
           class="flex items-center justify-center gap-2 rounded-2xl bg-info px-4 py-3 text-sm font-extrabold text-surface-base shadow-lg shadow-info/20 transition-all hover:bg-info-light active:scale-95"
           :class="!canStart ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'"
           @click="startRandomize"

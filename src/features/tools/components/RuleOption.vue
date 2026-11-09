@@ -28,7 +28,7 @@ const emit = defineEmits<{ toggle: [] }>()
 const { t } = useI18n({ useScope: 'global' })
 const ui = useUiStore()
 const detailsOpen = ref(false)
-const ruleImages = { damage: damageImage, lucky: luckyImage, tail: tailImage }
+const ruleImages = { damage: damageImage, lucky: luckyImage, tail: tailImage, damage_size: null }
 watch(
   () => ui.activeTab,
   (tab) => {
@@ -104,11 +104,23 @@ const textClasses = computed(() =>
                 <DialogDescription class="sr-only">
                   {{ t(`rules.${rule.key}.detail`) }}
                   {{ t(`rules.${rule.key}.example`) }}
-                  {{ t('rules.tieNote') }}
+                  {{
+                    rule.key === 'damage_size' ? t('rules.damage_size.scope') : t('rules.tieNote')
+                  }}
                 </DialogDescription>
                 <div class="max-h-[75vh] overflow-y-auto">
+                  <div
+                    v-if="rule.key === 'damage_size'"
+                    class="space-y-3 p-5 text-sm leading-relaxed text-text-secondary"
+                  >
+                    <p>{{ t('rules.damage_size.detail') }}</p>
+                    <p>{{ t('rules.damage_size.example') }}</p>
+                    <p>{{ t('rules.damage_size.scope') }}</p>
+                    <p class="text-xs text-text-muted">{{ t('damageSize.host') }}</p>
+                  </div>
                   <img
-                    :src="ruleImages[rule.key]"
+                    v-else
+                    :src="ruleImages[rule.key] ?? undefined"
                     alt=""
                     width="1672"
                     height="941"

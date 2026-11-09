@@ -14,7 +14,8 @@ async function quit() {
   if (exiting.value) return
   exiting.value = true
   try {
-    await exitApp()
+    if (connection.isDesktopRuntime) await exitApp()
+    else connection.disconnect()
   } catch {
     feedback.notify(t('settings.exitFailed'), 'error')
   } finally {
@@ -25,7 +26,6 @@ async function quit() {
 
 <template>
   <button
-    v-if="connection.isDesktopRuntime"
     type="button"
     class="cursor-pointer rounded-xl border border-on-solid/10 px-4 py-2 text-xs text-text-muted hover:text-on-solid disabled:cursor-not-allowed disabled:opacity-50"
     :disabled="exiting"

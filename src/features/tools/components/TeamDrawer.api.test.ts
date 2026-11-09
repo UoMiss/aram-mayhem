@@ -36,6 +36,7 @@ afterEach(() => {
   wrapper?.unmount()
   wrapper = undefined
   disposePinia(pinia)
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 describe('custom lobby team participants', () => {
@@ -149,6 +150,76 @@ describe('custom lobby team participants', () => {
 })
 
 describe('strict draw and result lifecycle', () => {
+  it.each([false, true])(
+    'reveals only after three seconds with reduced motion = %s',
+    async (reducedMotion) => {
+      const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+      vi.spyOn(window, 'matchMedia').mockReturnValue({ ...media, matches: reducedMotion })
+      const page = render()
+      await flushPromises()
+      await page.get('#randomBtn').trigger('click')
+      await flushPromises()
+      const preview = page.get('#teamA').text()
+      expect(page.get('#randomBtn').attributes('disabled')).toBeDefined()
+      expect(page.get('#randomBtn').attributes('aria-busy')).toBe('true')
+      expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
+      expect(page.find('#timestampBar').exists()).toBe(false)
+      expect(page.get('#randomBtn').text()).toContain('3')
+      await vi.advanceTimersByTimeAsync(120)
+      if (reducedMotion) expect(page.get('#teamA').text()).toBe(preview)
+      else expect(page.get('#teamA').text()).not.toBe(preview)
+      await vi.advanceTimersByTimeAsync(880)
+      expect(page.get('#randomBtn').text()).toContain('2')
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(page.get('#randomBtn').text()).toContain('1')
+      await vi.advanceTimersByTimeAsync(999)
+      expect(page.find('#timestampBar').exists()).toBe(false)
+      expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(page.find('#timestampBar').exists()).toBe(true)
+      expect(page.get('#randomBtn').text()).toBe('重新分队')
+      expect(page.get('#randomBtn').attributes('aria-busy')).toBe('false')
+      expect(page.get('#copyTeamBtn').attributes('disabled')).toBeUndefined()
+    },
+  )
+
+  it.each(['close', 'disconnect', 'session', 'unmount'])(
+    'cancels an in-flight shuffle on %s without revealing a stale result',
+    async (reason) => {
+      const page = render()
+      await flushPromises()
+      await page.get('#randomBtn').trigger('click')
+      await flushPromises()
+      await vi.advanceTimersByTimeAsync(120)
+      if (reason === 'close') await page.setProps({ open: false })
+      if (reason === 'disconnect')
+        useConnectionStore(pinia).setLcuStatus(
+          connectedStatus({ status: 'disconnected', revision: 2 }),
+        )
+      if (reason === 'session') {
+        const connection = useConnectionStore(pinia)
+        const flow = connection.gameflowSnapshot!
+        connection.setGameflowSnapshot({
+          ...flow,
+          revision: 2,
+          session: { ...flow.session!, sessionKey: 'new-room-session' },
+        })
+      }
+      if (reason === 'unmount') {
+        page.unmount()
+        wrapper = undefined
+      }
+      await flushPromises()
+      await vi.advanceTimersByTimeAsync(3000)
+      if (reason === 'unmount') expect(vi.getTimerCount()).toBe(0)
+      else {
+        expect(page.find('#timestampBar').exists()).toBe(false)
+        expect(page.get('#teamA').findAll('[title]')).toHaveLength(0)
+        expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
+      }
+    },
+  )
+
   async function draw(page: ReturnType<typeof render>) {
     await flushPromises()
     await page.get('#randomBtn').trigger('click')

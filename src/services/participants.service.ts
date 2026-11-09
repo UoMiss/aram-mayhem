@@ -1,12 +1,9 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { TEAM_DRAW_PLAYERS } from '@/mocks/tools'
+import { demoParticipants } from '@/mocks/client-demo'
 import type { ParticipantSnapshot } from '@/types/participants'
-import type { TeamPlayer } from '@/types/tools'
-export type ParticipantsResult =
-  | { source: 'real'; snapshot: ParticipantSnapshot }
-  | { source: 'mock'; players: readonly TeamPlayer[] }
+export type ParticipantsResult = { source: 'real' | 'mock'; snapshot: ParticipantSnapshot }
 export async function getCustomParticipants(): Promise<ParticipantsResult> {
-  if (!isTauri()) return { source: 'mock', players: TEAM_DRAW_PLAYERS }
+  if (!isTauri()) return { source: 'mock', snapshot: demoParticipants() }
   const { tauriParticipantsAdapter } = await import('@/adapters/tauri.adapter')
   return { source: 'real', snapshot: await tauriParticipantsAdapter.getCustomParticipants() }
 }

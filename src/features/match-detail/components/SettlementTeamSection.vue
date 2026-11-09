@@ -5,25 +5,35 @@ import { TEAM_BADGE_KEYS, TEAM_TITLE_KEYS } from '@/i18n/labels'
 import SettlementPlayerRow from '@/features/match-detail/components/SettlementPlayerRow.vue'
 import type { SettlementPlayer, TeamSide } from '@/types/match-detail'
 
-const props = defineProps<{
-  win?: boolean
-  side: TeamSide
-  players: readonly SettlementPlayer[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    win?: boolean
+    side?: TeamSide
+    title?: string
+    players: readonly SettlementPlayer[]
+  }>(),
+  { win: undefined, side: undefined, title: undefined },
+)
 const { t } = useI18n({ useScope: 'global' })
 
 const teamTone = computed(() =>
-  props.side === 'blue'
+  !props.side
     ? {
-        border: 'border-l-info-bright',
-        header: 'bg-info-bright/10',
-        title: 'text-info',
+        border: 'border-l-border-strong',
+        header: 'bg-surface-sunken/50',
+        title: 'text-text-secondary',
       }
-    : {
-        border: 'border-l-danger-bright',
-        header: 'bg-danger-bright/10',
-        title: 'text-danger',
-      },
+    : props.side === 'blue'
+      ? {
+          border: 'border-l-info-bright',
+          header: 'bg-info-bright/10',
+          title: 'text-info',
+        }
+      : {
+          border: 'border-l-danger-bright',
+          header: 'bg-danger-bright/10',
+          title: 'text-danger',
+        },
 )
 
 const totalKda = computed(() => {
@@ -41,7 +51,7 @@ const totalKda = computed(() => {
 
 <template>
   <div
-    :data-team-section="side"
+    :data-team-section="side ?? title"
     class="overflow-hidden rounded-xl border border-on-solid/5 border-l-4"
     :class="[teamTone.border, side === 'blue' ? 'mt-3' : '']"
   >
@@ -50,18 +60,22 @@ const totalKda = computed(() => {
       :class="teamTone.header"
     >
       <span class="text-xs font-bold" :class="teamTone.title">{{
-        win === undefined
-          ? t(TEAM_TITLE_KEYS[side])
-          : `${t(TEAM_BADGE_KEYS[side])} · ${t(win ? 'history.results.victory' : 'history.results.defeat')}`
+        title ??
+        (!side
+          ? ''
+          : win === undefined
+            ? t(TEAM_TITLE_KEYS[side])
+            : `${t(TEAM_BADGE_KEYS[side])} · ${t(win ? 'history.results.victory' : 'history.results.defeat')}`)
       }}</span>
       <span class="text-xs font-bold tracking-wider text-text-muted">{{ totalKda }}</span>
     </div>
 
-    <SettlementPlayerRow
-      v-for="player in players"
-      :key="player.id"
-      :player="player"
-      layout="group"
-    />
+    <slot
+      ><SettlementPlayerRow
+        v-for="player in players"
+        :key="player.id"
+        :player="player"
+        layout="group"
+    /></slot>
   </div>
 </template>

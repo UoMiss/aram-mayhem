@@ -1,3 +1,5 @@
+import { configureDemo, demoFlow } from '@/mocks/client-demo'
+import { isRuntimeFlow } from '@/services/runtime-source'
 import { computed, onScopeDispose, ref } from 'vue'
 import { isTauri } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
@@ -26,7 +28,11 @@ export const useConnectionStore = defineStore('connection', () => {
       lcuStatus.value.simulated === false &&
       lcuStatus.value.status === 'connected',
   )
-  const canReadAccountData = computed(() => isRealLcuConnected.value && !isAccountInvalidated.value)
+  const canReadAccountData = computed(
+    () =>
+      (isDesktopRuntime.value ? isRealLcuConnected.value : connectionPhase.value === 'connected') &&
+      !isAccountInvalidated.value,
+  )
   const isConnected = computed(() =>
     isDesktopRuntime.value ? isRealLcuConnected.value : connectionPhase.value === 'connected',
   )
@@ -49,7 +55,9 @@ export const useConnectionStore = defineStore('connection', () => {
     connectionPhase.value = 'connecting'
     connectTimer = setTimeout(() => {
       connectTimer = null
+      configureDemo({})
       connectionPhase.value = 'connected'
+      setGameflowSnapshot(demoFlow())
       ui.setActiveTab('home')
     }, CONNECT_DELAY_MS)
   }
@@ -88,7 +96,7 @@ export const useConnectionStore = defineStore('connection', () => {
       return
     }
     gameflowSnapshot.value = snapshot
-    if (snapshot.source === 'real' && !snapshot.simulated) {
+    if (isRuntimeFlow(snapshot)) {
       if (snapshot.code === 'account_changed') isAccountInvalidated.value = true
       else if (snapshot.connected && !snapshot.code) isAccountInvalidated.value = false
     }

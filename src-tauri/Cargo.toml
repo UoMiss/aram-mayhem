@@ -1,6 +1,6 @@
 [package]
 name = "aram-mayhem"
-version = "0.1.2"
+version = "0.1.3-rc.1"
 description = "ARAM: Mayhem desktop shell"
 authors = ["ARAM: Mayhem"]
 edition = "2024"

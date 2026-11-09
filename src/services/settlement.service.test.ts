@@ -10,6 +10,7 @@ vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => adapter.desktop }))
 vi.mock('@/adapters/tauri.adapter', () => ({
   tauriSettlementAdapter: { getSettlement: adapter.load },
 }))
+import { DEMO_ACCOUNT, demoHistory } from '@/mocks/client-demo'
 import { getSettlement } from './settlement.service'
 const request: SettlementRequest = {
   gameId: TEST_SETTLEMENT_ID,
@@ -22,7 +23,15 @@ beforeEach(() => {
 })
 describe('settlement service', () => {
   it('identifies browser fixtures explicitly without IPC', async () => {
-    expect((await getSettlement(request)).source).toBe('mock')
+    expect(
+      (
+        await getSettlement({
+          ...request,
+          accountKey: DEMO_ACCOUNT,
+          gameId: demoHistory().matches[0]!.id,
+        })
+      ).source,
+    ).toBe('mock')
     expect(adapter.load).not.toHaveBeenCalled()
   })
   it('loads native details and preserves failures on desktop', async () => {

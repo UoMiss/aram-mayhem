@@ -14,6 +14,7 @@ export const SCORE_RULE_OPTIONS: readonly ScoreRuleOption[] = [
     key: 'tail',
     icon: 'fa-solid fa-list-ol',
   },
+  { key: 'damage_size', icon: 'fa-solid fa-dice-two' },
 ]
 
 /**

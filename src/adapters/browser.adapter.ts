@@ -1,3 +1,4 @@
+import { demoFlow, subscribeDemoFlow } from '@/mocks/client-demo'
 import { APP_VERSION } from '@/shared/constants/app'
 import type { AppHealth, DesktopAdapter } from '@/types/desktop'
 import type { GameflowAdapter, GameflowSnapshot, LcuAdapter, LcuStatusDto } from '@/types/lcu'
@@ -53,18 +54,7 @@ export const browserLcuAdapter: LcuAdapter = {
 
 function mockGameflow(overrides: Partial<GameflowSnapshot> = {}): GameflowSnapshot {
   return {
-    readyCheckStatus: null,
-    revision: 1,
-    updatedAt: Date.now(),
-    connected: true,
-    phase: 'lobby',
-    rawPhase: 'Lobby',
-    transport: 'polling',
-    source: 'mock',
-    simulated: true,
-    session: null,
-    code: null,
-    message: null,
+    ...demoFlow(),
     ...overrides,
   }
 }
@@ -87,7 +77,7 @@ export const browserGameflowAdapter: GameflowAdapter = {
       code: 'monitoring_stopped',
     })
   },
-  async subscribe() {
-    return () => undefined
+  async subscribe(listener) {
+    return subscribeDemoFlow(listener)
   },
 }

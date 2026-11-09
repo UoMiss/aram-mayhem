@@ -40,10 +40,14 @@ const note = computed(() =>
         class="flex items-center gap-1 rounded-lg border border-danger-bright/40 bg-danger-base/80 px-2.5 py-1.5 text-xs font-bold text-danger-soft shadow-sm"
       >
         <span>{{ entry.name }}</span>
-        <span class="text-[11px] font-ink text-warning">#{{ entry.rank }}</span>
+        <span v-if="entry.rank !== null" class="text-[11px] font-ink text-warning"
+          >#{{ entry.rank }}</span
+        >
       </div>
     </div>
 
-    <p class="text-xs font-bold text-danger-light/80 drop-shadow-md">{{ note }}</p>
+    <p class="text-xs font-bold text-danger-light/80 drop-shadow-md">
+      <slot name="note">{{ note }}</slot>
+    </p>
   </div>
 </template>

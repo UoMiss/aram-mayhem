@@ -52,9 +52,12 @@ export function createManifest({
   pubkey,
   notes = '',
   date = new Date().toISOString(),
+  allowPrerelease = false,
 }) {
-  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version))
-    throw Error('Only stable SemVer releases are supported')
+  const stable = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
+  const rc = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-rc\.[1-9]\d*$/
+  if (!stable.test(version) && !(allowPrerelease && rc.test(version)))
+    throw Error('Only stable SemVer or explicitly enabled rc.N releases are supported')
   verifyUpdaterArtifact(bytes, signature, pubkey, version)
   return {
     version,
@@ -82,6 +85,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     bytes: readFileSync(resolve(folder, installerName)),
     pubkey: config.plugins.updater.pubkey,
     notes: `ARAM Mayhem ${config.version}`,
+    allowPrerelease: process.argv.includes('--prerelease'),
   })
   writeFileSync(resolve(folder, 'latest.json'), JSON.stringify(manifest, null, 2) + '\n')
   console.log(`Verified signed Windows update and generated latest.json for ${config.version}`)

@@ -304,7 +304,8 @@ function isLockedMatchRule(value: unknown): value is MatchRuleRecord {
     (record.rule === null ||
       record.rule === 'damage' ||
       record.rule === 'tail' ||
-      record.rule === 'lucky') &&
+      record.rule === 'lucky' ||
+      record.rule === 'damage_size') &&
     (record.luckyDigit === null || (record.rule === 'lucky' && isLuckyDigit(record.luckyDigit)))
   )
 }

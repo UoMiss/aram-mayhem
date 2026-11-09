@@ -18,7 +18,7 @@ const filteredMatches = computed(() =>
     ? history.matchHistory
     : history.matchHistory.filter((match) => match.mode === history.historyFilter),
 )
-const canLoad = computed(() => !connection.isDesktopRuntime || connection.canReadAccountData)
+const canLoad = computed(() => connection.canReadAccountData)
 const errorText = computed(() => {
   switch (history.errorCode) {
     case 'lcu.not_logged_in':
@@ -54,7 +54,7 @@ onMounted(() => {
   watch(
     () => [ui.activeTab === 'history', connection.canReadAccountData] as const,
     ([active, connected]) => {
-      if (connection.isDesktopRuntime && !connected) {
+      if (!connected) {
         history.clearRealHistory()
         return
       }

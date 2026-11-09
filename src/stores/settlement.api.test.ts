@@ -1,3 +1,4 @@
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, disposePinia } from 'pinia'
 import {

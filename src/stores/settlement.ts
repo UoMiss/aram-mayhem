@@ -1,3 +1,4 @@
+import { isRuntimeSource } from '@/services/runtime-source'
 import { computed, onScopeDispose, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import { getSettlement } from '@/services/settlement.service'
@@ -14,6 +15,12 @@ export const useSettlementStore = defineStore('settlement', () => {
     if (errorCode.value === 'lcu.settlement_unavailable') return 'unavailable'
     if (errorCode.value) return 'error'
     if (!snapshot.value) return 'idle'
+    if (snapshot.value.appliedRule === 'damage_size') {
+      const size = snapshot.value.damageSize
+      if (size?.status === 'pending') return isPostGame.value ? 'pending' : 'unavailable'
+      if (size?.status === 'unsupported' || size?.status === 'conflict') return 'unavailable'
+      return 'complete'
+    }
     if (['missing_damage', 'missing_friends'].includes(snapshot.value.rankingStatus))
       return isPostGame.value ? 'pending' : 'unavailable'
     if (snapshot.value.rankingStatus === 'missing_lucky') return 'unavailable'
@@ -44,7 +51,7 @@ export const useSettlementStore = defineStore('settlement', () => {
         const result = await getSettlement(request)
         if (token !== generation) return
         if (
-          result.source !== 'real' ||
+          !isRuntimeSource(result.source) ||
           result.snapshot.id !== request.gameId ||
           result.snapshot.accountKey !== request.accountKey ||
           (!result.snapshot.lockedRule &&
