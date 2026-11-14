@@ -19,7 +19,6 @@ import SettingToggle from '@/features/settings/components/SettingToggle.vue'
 import { SETTINGS_OPTIONS } from '@/mocks/settings'
 import { useSettingsStore } from '@/stores/settings'
 import { useFeedbackStore } from '@/stores/feedback'
-import ExitAppButton from '@/components/common/ExitAppButton.vue'
 
 const settings = useSettingsStore()
 const desktop = useDesktopStore()
@@ -212,7 +211,6 @@ async function changeSetting(key: SettingKey, value: boolean) {
       >
         {{ t('settings.releasePage') }}
       </button>
-      <ExitAppButton class="w-full" />
     </div>
   </section>
 </template>

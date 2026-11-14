@@ -15,9 +15,6 @@ import { useI18n } from 'vue-i18n'
 import { SCORE_RULE_DESCRIPTION_KEYS, SCORE_RULE_NAME_KEYS } from '@/i18n/labels'
 import { useUiStore } from '@/stores/ui'
 import type { ScoreRuleOption } from '@/types/tools'
-import damageImage from '@/assets/rules/pure-damage.png'
-import luckyImage from '@/assets/rules/lucky-number.png'
-import tailImage from '@/assets/rules/damage-tail.png'
 
 const props = defineProps<{
   rule: ScoreRuleOption
@@ -28,7 +25,6 @@ const emit = defineEmits<{ toggle: [] }>()
 const { t } = useI18n({ useScope: 'global' })
 const ui = useUiStore()
 const detailsOpen = ref(false)
-const ruleImages = { damage: damageImage, lucky: luckyImage, tail: tailImage, damage_size: null }
 watch(
   () => ui.activeTab,
   (tab) => {
@@ -88,44 +84,58 @@ const textClasses = computed(() =>
             <DialogPortal>
               <DialogOverlay class="fixed inset-0 z-modal bg-ink/70 backdrop-blur-sm" />
               <DialogContent
-                class="fixed top-1/2 left-1/2 z-modal w-[calc(100%_-_1rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-brand/25 bg-card shadow-2xl"
+                class="fixed top-1/2 left-1/2 z-modal flex max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-brand/25 bg-card shadow-2xl"
               >
-                <div class="flex items-center gap-2 p-2.5">
-                  <DialogTitle class="mr-auto text-sm font-bold text-on-solid">{{
-                    label
-                  }}</DialogTitle>
+                <div
+                  class="flex shrink-0 items-center gap-3 border-b border-brand/20 bg-linear-to-br from-brand-surface/45 to-card px-4 py-4 min-[400px]:px-5"
+                >
+                  <span
+                    class="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-strong/25 text-brand-pale"
+                    aria-hidden="true"
+                  >
+                    <i :class="[rule.icon, 'text-base']"></i>
+                  </span>
+                  <DialogTitle
+                    class="min-w-0 flex-1 text-xl leading-tight font-bold text-on-solid min-[400px]:text-2xl"
+                  >
+                    {{ label }}
+                  </DialogTitle>
                   <DialogClose
                     :aria-label="t('rules.closeDetails')"
-                    class="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-surface-raised text-text-muted hover:text-on-solid focus-visible:outline-2 focus-visible:outline-ring"
+                    class="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full bg-surface-raised text-text-secondary hover:text-on-solid focus-visible:outline-2 focus-visible:outline-ring"
                   >
                     <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                   </DialogClose>
                 </div>
-                <DialogDescription class="sr-only">
-                  {{ t(`rules.${rule.key}.detail`) }}
-                  {{ t(`rules.${rule.key}.example`) }}
-                  {{
-                    rule.key === 'damage_size' ? t('rules.damage_size.scope') : t('rules.tieNote')
-                  }}
-                </DialogDescription>
-                <div class="max-h-[75vh] overflow-y-auto">
-                  <div
-                    v-if="rule.key === 'damage_size'"
-                    class="space-y-3 p-5 text-sm leading-relaxed text-text-secondary"
-                  >
-                    <p>{{ t('rules.damage_size.detail') }}</p>
-                    <p>{{ t('rules.damage_size.example') }}</p>
-                    <p>{{ t('rules.damage_size.scope') }}</p>
-                    <p class="text-xs text-text-muted">{{ t('damageSize.host') }}</p>
+                <div
+                  tabindex="0"
+                  class="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4 text-sm leading-[1.65] text-text-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring min-[400px]:px-5"
+                >
+                  <div class="space-y-1">
+                    <h3 class="text-sm font-semibold text-brand-pale">
+                      {{ t('rules.details.sections.play') }}
+                    </h3>
+                    <DialogDescription class="text-base leading-6 text-text-soft">
+                      {{ t(`rules.${rule.key}.details.play`) }}
+                    </DialogDescription>
                   </div>
-                  <img
-                    v-else
-                    :src="ruleImages[rule.key] ?? undefined"
-                    alt=""
-                    width="1672"
-                    height="941"
-                    class="block h-auto w-full"
-                  />
+                  <div
+                    class="space-y-1 rounded-xl border border-brand/20 bg-brand-surface/20 px-3 py-2.5"
+                  >
+                    <h3 class="text-sm font-semibold text-on-solid">
+                      {{ t('rules.details.sections.redPackets') }}
+                    </h3>
+                    <p>{{ t(`rules.${rule.key}.details.redPackets`) }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <h3 class="text-sm font-semibold text-on-solid">
+                      {{ t('rules.details.sections.settlement') }}
+                    </h3>
+                    <p>{{ t(`rules.${rule.key}.details.settlement`) }}</p>
+                  </div>
+                  <p class="border-t border-on-solid/10 pt-3 text-xs leading-5 text-text-muted">
+                    {{ t('rules.details.scope') }}
+                  </p>
                 </div>
               </DialogContent>
             </DialogPortal>

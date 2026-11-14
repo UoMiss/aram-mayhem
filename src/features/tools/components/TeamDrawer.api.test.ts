@@ -67,6 +67,55 @@ describe('custom lobby team participants', () => {
     expect(page.get('#teamA').findAll('[title]')).toHaveLength(0)
     expect(page.get('#playerCount').text()).toBe('8 人')
   })
+  it('shows the current sides without headings, then draws the combined roster', async () => {
+    const snapshot = testParticipants(6)
+    snapshot.players = snapshot.players.map((player, index) => ({
+      ...player,
+      side: index < 2 ? 'blue' : 'red',
+    }))
+    api.load.mockResolvedValue({ source: 'real', snapshot })
+    const page = render()
+    await flushPromises()
+    const names = (selector: string) =>
+      page
+        .get(selector)
+        .findAll('[title]')
+        .map((p) => p.text())
+    const left = '#unrandomizedView [data-current-side="blue"]'
+    const right = '#unrandomizedView [data-current-side="red"]'
+    expect(names(left)).toEqual(['真实玩家1', '真实玩家2'])
+    expect(names(right)).toEqual(['真实玩家3', '真实玩家4', '真实玩家5', '真实玩家6'])
+    expect(page.get('#unrandomizedView').text()).not.toMatch(/蓝色方|红色方/)
+
+    const moved = {
+      ...snapshot,
+      players: snapshot.players.map((player) => ({
+        ...player,
+        side: player.id === 'player-3' ? ('blue' as const) : player.side,
+      })),
+    }
+    api.load.mockResolvedValue({ source: 'real', snapshot: moved })
+    await page.get('#refreshTeamPlayers').trigger('click')
+    await flushPromises()
+    expect(names(left)).toEqual(['真实玩家1', '真实玩家2', '真实玩家3'])
+    expect(names(right)).toEqual(['真实玩家4', '真实玩家5', '真实玩家6'])
+
+    await page.get('#randomBtn').trigger('click')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(3000)
+    const blue = names('#teamA')
+    const red = names('#teamB')
+    expect(blue).toHaveLength(3)
+    expect(red).toHaveLength(3)
+    expect([...blue, ...red].sort()).toEqual(snapshot.players.map((player) => player.name).sort())
+
+    api.load.mockResolvedValue({ source: 'real', snapshot })
+    await page.get('#refreshTeamPlayers').trigger('click')
+    await flushPromises()
+    expect(names('#teamA')).toEqual(blue)
+    expect(names('#teamB')).toEqual(red)
+    expect(page.get('#copyTeamBtn').attributes('disabled')).toBeUndefined()
+  })
   it('distinguishes normal and missing rooms, errors and retry without mock fallback', async () => {
     api.load.mockResolvedValueOnce({
       source: 'real',

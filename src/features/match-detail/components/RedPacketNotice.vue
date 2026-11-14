@@ -1,53 +1,61 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { RedPacketEntry } from '@/types/match-detail'
 
 const props = defineProps<{
-  entries: readonly RedPacketEntry[]
+  entries: readonly string[]
   quota?: number
   preview?: boolean
+  status?: string | null
+  notice?: string | null
 }>()
 const { t } = useI18n({ useScope: 'global' })
-const note = computed(() =>
-  props.quota !== undefined && props.entries.length > props.quota
-    ? t('matchDetail.redPacketTie', { quota: props.quota, count: props.entries.length })
-    : t(props.preview ? 'matchDetail.redPacketPreviewNote' : 'matchDetail.redPacketNote', {
-        count: props.entries.length,
-      }),
-)
+const note = computed(() => {
+  if (props.status) return props.status
+  const count = props.entries.length
+  const message =
+    count === 0
+      ? t('matchDetail.redPacketEmpty')
+      : props.quota !== undefined && count > props.quota
+        ? t('matchDetail.redPacketTie', { quota: props.quota, count })
+        : null
+  return [message, props.notice].filter(Boolean).join(' · ')
+})
 </script>
 
 <template>
-  <div
-    class="relative flex flex-col items-center overflow-hidden rounded-xl border border-danger-bright/30 bg-card p-4 shadow-notice"
-  >
-    <div
-      class="absolute top-0 left-0 h-[1px] w-full bg-gradient-to-r from-transparent via-danger-bright to-transparent opacity-60"
-    ></div>
-
-    <div class="mb-3 flex items-center gap-1.5">
-      <i class="fa-solid fa-hand-holding-dollar text-sm text-danger-bright"></i>
-      <span class="text-sm font-bold tracking-wider text-danger">{{
-        t(preview ? 'matchDetail.redPacketPreviewTitle' : 'matchDetail.redPacketTitle')
-      }}</span>
+  <div class="space-y-2 rounded-xl border border-danger-bright/20 bg-card p-3">
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <h3 class="flex items-center gap-1.5 text-sm font-bold text-danger">
+        <i class="fa-solid fa-hand-holding-dollar text-danger-bright" aria-hidden="true"></i>
+        <span>{{
+          t(
+            status
+              ? 'matchDetail.redPacketUnavailableTitle'
+              : preview
+                ? 'matchDetail.redPacketPreviewTitle'
+                : 'matchDetail.redPacketTitle',
+          )
+        }}</span>
+        <span v-if="!status" class="shrink-0 text-xs font-medium text-text-muted">{{
+          t('matchDetail.redPacketPeople', { count: entries.length })
+        }}</span>
+      </h3>
+      <slot name="outcome" />
     </div>
 
-    <div class="mb-3 flex w-full flex-wrap justify-center gap-2">
-      <div
-        v-for="(entry, index) in entries"
+    <ul v-if="entries.length" class="flex flex-wrap gap-1.5">
+      <li
+        v-for="(name, index) in entries"
         :key="index"
-        class="flex items-center gap-1 rounded-lg border border-danger-bright/40 bg-danger-base/80 px-2.5 py-1.5 text-xs font-bold text-danger-soft shadow-sm"
+        class="max-w-full rounded-lg border border-danger-bright/25 bg-danger-base/50 px-2 py-1 text-xs font-semibold wrap-anywhere text-danger-soft"
       >
-        <span>{{ entry.name }}</span>
-        <span v-if="entry.rank !== null" class="text-[11px] font-ink text-warning"
-          >#{{ entry.rank }}</span
-        >
-      </div>
-    </div>
+        {{ name }}
+      </li>
+    </ul>
 
-    <p class="text-xs font-bold text-danger-light/80 drop-shadow-md">
-      <slot name="note">{{ note }}</slot>
+    <p v-if="note" :role="status || notice ? 'status' : undefined" class="text-xs text-text-muted">
+      {{ note }}
     </p>
   </div>
 </template>

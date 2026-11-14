@@ -85,14 +85,27 @@ describe('real match settlement', () => {
     expect(screenshot.find('h2').exists()).toBe(false)
     expect(screenshot.find('#layout-group').exists()).toBe(true)
     expect(page.text()).not.toContain('开始时间')
-    expect(page.find('#settlement-lucky-digit').exists()).toBe(false)
+    expect(page.find('#settlement-outcome').exists()).toBe(false)
     expect(page.text()).not.toContain('发红包名单')
     expect(page.text()).toContain('当前参与排名人数不符合红包规则')
     expect(page.text()).not.toContain('浏览器演示结算')
     expect(page.get('[data-team-section="blue"] img').attributes('src')).toContain('Zeri')
     expect(page.get('#layout-group').text()).toContain('路人玩家')
-    expect(page.get('#btn-layout-global').text()).toContain('好友排行')
+    const group = page.get('#layout-group')
+    expect(group.find('.player-rank, [data-player-result]').exists()).toBe(false)
+    const avatarDetails = (view: typeof group) => {
+      const row = view.get('[data-player-id="1"]')
+      return {
+        portrait: row.get('img').attributes('src'),
+        level: row.get('[data-player-level]').text(),
+        relation: row.get('[data-player-relation]').text(),
+      }
+    }
+    const battleAvatar = avatarDetails(group)
+    expect(page.get('#btn-layout-group').text()).toBe('战局')
+    expect(page.get('#btn-layout-global').text()).toBe('结算')
     await page.get('#btn-layout-global').trigger('click')
+    expect(avatarDetails(page.get('#layout-global'))).toEqual(battleAvatar)
     expect(
       page
         .get('#layout-global')
@@ -100,6 +113,7 @@ describe('real match settlement', () => {
         .map((row) => row.attributes('data-player-id')),
     ).toEqual(['3', '1'])
     expect(page.get('#layout-global [data-player-id="3"]').text()).toContain('#1')
+    expect(page.get('#layout-global [data-player-id="3"] [data-player-result]').text()).toBe('9')
     expect(page.get('#layout-global [data-player-id="3"] [data-player-relation]').text()).toBe('友')
     expect(page.get('#layout-global [data-player-id="1"] [data-player-relation]').text()).toBe('我')
     expect(page.get('#layout-global [data-player-id="3"]').classes()).toContain(
@@ -135,12 +149,17 @@ describe('real match settlement', () => {
       await flushPromises()
       expect(page.text()).toContain(title)
       expect(page.text()).not.toContain(otherTitle)
-      expect(page.text()).toContain('原取末 1 名，分界并列后共 2 人')
+      expect(page.text()).toContain('末位并列，原取 1 人，实际 2 人')
+      const packet = page.get('#screenshot-area [data-red-packet]')
+      expect(packet.findAll('li').map((entry) => entry.text())).toEqual([
+        '真实玩家#CN1',
+        tiedFriend.nickname,
+      ])
       if (lockedRule) {
-        const card = page.get('#screenshot-area #settlement-lucky-digit')
-        expect(card.text()).toContain('本局幸运数字')
+        const card = packet.get('#settlement-outcome')
+        expect(card.text()).toContain('幸运数字')
         expect(card.get('strong').text()).toBe('0')
-        expect(card.element.nextElementSibling?.textContent).toContain('发红包名单')
+        expect(packet.get('h3').text()).toBe('发红包名单 · 2 人')
       }
     },
   )
@@ -160,9 +179,10 @@ describe('real match settlement', () => {
     await flushPromises()
     expect(page.text()).toContain('没有可用的赛后幸运数字')
     expect(page.text()).toContain('真实玩家#CN1')
-    expect(page.get('#btn-layout-global').text()).toContain('全场数据')
+    expect(page.get('#btn-layout-global').text()).toBe('结算')
+    await page.get('#btn-layout-global').trigger('click')
     expect(page.get('#layout-global').text()).not.toContain('#1')
-    expect(page.text()).not.toContain('红包名单')
+    expect(page.get('[data-red-packet] h3').text()).toBe('红包名单暂不可用')
   })
   it('sanitizes native errors, permits retry, and never shows demo data on failure', async () => {
     api.load.mockRejectedValueOnce(new LcuServiceError('lcu.timeout', 'password=secret'))
@@ -293,7 +313,7 @@ it.each([
       expect(page.text()).toContain('重新登录后的玩家')
       expect(useSettlementStore(pinia).snapshot).toEqual(fresh)
       expect(useSettlementStore(pinia).errorCode).toBeNull()
-      expect(page.get('#settlement-lucky-digit strong').text()).toBe('7')
+      expect(page.get('[data-red-packet] #settlement-outcome strong').text()).toBe('7')
     } finally {
       lifecycleHost.unmount()
     }

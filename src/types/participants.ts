@@ -1,6 +1,7 @@
 export interface LobbyParticipant {
   id: string
   name: string | null
+  side: 'blue' | 'red' | null
 }
 export type RosterCompleteness = 'complete' | 'partial' | 'unknown'
 export type RosterIssue =

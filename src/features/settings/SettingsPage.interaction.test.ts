@@ -20,7 +20,7 @@ describe('settings component interaction', () => {
     })
     expect(switches[0]!.attributes('aria-checked')).toBe('true')
     expect(wrapper.text()).toContain('v1.2.3')
-    expect(wrapper.text()).not.toMatch(/开机|自动重试|提示音效/)
+    expect(wrapper.text()).not.toMatch(/开机|自动重试|提示音效|退出助手/)
     wrapper.unmount()
     disposePinia(pinia)
   })

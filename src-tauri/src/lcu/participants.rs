@@ -17,6 +17,14 @@ use std::collections::HashSet;
 pub struct Participant {
     pub id: String,
     pub name: Option<String>,
+    pub side: Option<ParticipantSide>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ParticipantSide {
+    Blue,
+    Red,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -215,7 +223,11 @@ fn collect_players(teams: Vec<&Vec<Value>>, selection: bool) -> Result<Vec<Parti
                 continue;
             }
             let name = player_name(player);
-            players.push(Participant { id, name });
+            players.push(Participant {
+                id,
+                name,
+                side: None,
+            });
         }
     }
     if players.len() > 100 {
@@ -316,6 +328,10 @@ pub async fn load_participants(
                 LcuErrorCode::Cancelled,
                 "Room changed during participant query",
             ));
+        }
+        // Membership is stable; a side change can be reflected without discarding resolved names.
+        for (player, latest) in snapshot.players.iter_mut().zip(check.players) {
+            player.side = latest.side;
         }
     }
     source.verify_client().await?;
@@ -698,5 +714,18 @@ mod binding_tests {
             load_participants(&source).await.unwrap_err().code,
             "cancelled"
         );
+    }
+
+    #[tokio::test]
+    async fn returns_latest_sides_when_players_switch_without_leaving() {
+        let first = room("r1");
+        let mut second = first.clone();
+        second["gameConfig"]["customTeam100"] = first["gameConfig"]["customTeam200"].clone();
+        second["gameConfig"]["customTeam200"] = first["gameConfig"]["customTeam100"].clone();
+        let source = ChangingRoom(Mutex::new([first, second].into()));
+        let result = load_participants(&source).await.unwrap();
+        assert_eq!(result.players[0].id, "p1");
+        assert_eq!(result.players[0].side, Some(ParticipantSide::Red));
+        assert_eq!(result.players[1].side, Some(ParticipantSide::Blue));
     }
 }

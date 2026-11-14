@@ -38,6 +38,12 @@ const gameInfo = useGameInfo(
   () => roster.snapshot.value?.accountKey,
 )
 const players = roster.players
+const currentColumns = computed(() =>
+  (['blue', 'red', null] as const).map((side) => ({
+    side,
+    players: players.value.filter((player) => player.side === side),
+  })),
+)
 const rosterChanged = ref(false)
 const isStarting = ref(false)
 let copyGeneration = 0
@@ -342,14 +348,23 @@ onUnmounted(() => {
             :class="{ 'shuffling-active': isShuffling }"
           >
             <div v-show="!hasResult" id="unrandomizedView" class="grid w-full grid-cols-2 gap-2.5">
-              <div
-                v-for="player in players"
-                :key="player.id"
-                :title="player.name"
-                class="flex h-10 items-center justify-center truncate rounded-xl border border-on-solid/10 bg-surface-raised/50 px-2 text-xs font-bold text-on-solid shadow-inner"
-              >
-                {{ player.name }}
-              </div>
+              <template v-for="column in currentColumns" :key="column.side ?? 'unknown'">
+                <div
+                  v-if="column.side || column.players.length"
+                  :data-current-side="column.side ?? 'unknown'"
+                  class="grid min-w-0 content-start gap-2.5"
+                  :class="column.side === null ? 'col-span-2 grid-cols-2' : undefined"
+                >
+                  <div
+                    v-for="player in column.players"
+                    :key="player.id"
+                    :title="player.name"
+                    class="flex h-10 min-w-0 items-center justify-center rounded-xl border border-on-solid/10 bg-surface-raised/50 px-2 text-xs font-bold text-on-solid shadow-inner"
+                  >
+                    <span class="truncate">{{ player.name }}</span>
+                  </div>
+                </div>
+              </template>
             </div>
 
             <div

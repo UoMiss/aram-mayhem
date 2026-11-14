@@ -181,7 +181,8 @@ it('copies normally once, prevents duplicate clicks and emits only one success n
     }),
   )
   const page = await render()
-  expect(page.findAll('.player-rank').length).toBeGreaterThan(0)
+  await page.get('#btn-layout-global').trigger('click')
+  expect(page.get('#screenshot-area #layout-global').find('.player-rank').exists()).toBe(true)
   await page.get('#copyBtn').trigger('click')
   await flushPromises()
   await page.get('#copyBtn').trigger('click')
@@ -343,25 +344,31 @@ it.each(['big', 'small'] as const)(
     api.load.mockResolvedValue({ source: 'real', snapshot: testDamageSize(outcome) })
     const page = await render()
     const area = page.get('#screenshot-area')
-    expect(area.get('[data-size-senders]').text()).toContain(
-      outcome === 'big' ? '本局 2 人发红包' : '本局无人需要发红包',
-    )
+    const packet = area.get('[data-red-packet]')
+    expect(packet.findAll('li')).toHaveLength(outcome === 'big' ? 2 : 0)
+    if (outcome === 'small') expect(packet.get('p').text()).toBe('本局无人需发红包')
+    else expect(packet.find('p').exists()).toBe(false)
     expect(area.findAll('[data-player-id]')).toHaveLength(2)
     expect(area.findAll('[data-player-id] img')).toHaveLength(2)
+    expect(area.find('[data-player-result]').exists()).toBe(false)
     expect(area.findAll('[data-player-relation]').map((tag) => tag.text())).toEqual(
       expect.arrayContaining(['我', '友']),
     )
     expect(area.find('.player-rank').exists()).toBe(false)
-    expect(area.get('[data-size-senders]').text()).toContain('发红包名单')
-    expect(area.get('[data-size-senders]').text()).not.toContain('最后')
+    expect(packet.get('h3').text()).toBe(`发红包名单 · ${outcome === 'big' ? 2 : 0} 人`)
+    expect(area.get('[data-red-packet] #settlement-outcome strong').text()).toBe(
+      outcome === 'big' ? '大' : '小',
+    )
+    expect(area.get('[data-red-packet]').text()).not.toContain('最后')
     expect(area.text()).not.toContain('#1')
     expect(area.text()).toContain('18,446,744,073,709,551,615')
     expect(page.get('#btn-layout-group').attributes('aria-pressed')).toBe('true')
-    expect(page.get('#btn-layout-group').text()).toContain('分组排行')
-    expect(page.get('#btn-layout-global').text()).toContain('全局排行')
+    expect(page.get('#btn-layout-group').text()).toBe('战局')
+    expect(page.get('#btn-layout-global').text()).toBe('结算')
     expect(page.get('#layout-group').findAll('[data-team-section]')).toHaveLength(2)
-    expect(page.get('#layout-group').text()).not.toMatch(/胜利|失败/)
-    const senders = area.get('[data-size-senders]').text()
+    expect(page.get('[data-team-section="red"]').text()).toContain('红方 · 失败')
+    expect(page.get('[data-team-section="blue"]').text()).toContain('蓝方 · 胜利')
+    const senders = area.get('[data-red-packet]').text()
     const ids = area
       .findAll('[data-player-id]')
       .map((row) => row.attributes('data-player-id'))
@@ -376,7 +383,11 @@ it.each(['big', 'small'] as const)(
         .map((row) => row.attributes('data-player-id'))
         .sort(),
     ).toEqual(ids)
-    expect(area.get('[data-size-senders]').text()).toBe(senders)
+    expect(area.get('[data-red-packet]').text()).toBe(senders)
+    expect(area.findAll('[data-player-relation]').map((tag) => tag.text())).toEqual(
+      expect.arrayContaining(['我', '友']),
+    )
+    expect(area.findAll('[data-player-result]').map((value) => value.text())).toEqual(['大', '大'])
     expect(area.find('.player-rank').exists()).toBe(false)
     await page.get('#copyBtn').trigger('click')
     await flushPromises()

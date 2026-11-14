@@ -11,9 +11,8 @@ const props = withDefaults(
     player: SettlementPlayer
     layout: SettlementLayout
     showRank?: boolean
-    highlightTeam?: boolean
   }>(),
-  { showRank: true, highlightTeam: true },
+  { showRank: true },
 )
 
 const toneClasses: Record<StatTone, { bar: string }> = {
@@ -23,18 +22,24 @@ const toneClasses: Record<StatTone, { bar: string }> = {
 }
 
 const teamTone = computed(() =>
-  props.player.team === 'blue'
-    ? {
-        border: 'border-l-info-bright',
-        tint: 'bg-info-bright/[0.02] hover:bg-info-bright/[0.05]',
-        score: 'text-info',
-      }
-    : {
-        border: 'border-l-danger-bright',
-        tint: 'bg-danger-bright/[0.02] hover:bg-danger-bright/[0.05]',
-        score: 'text-danger-bright',
-      },
+  props.player.team === null
+    ? { border: 'border-l-transparent', tint: '' }
+    : props.player.team === 'blue'
+      ? {
+          border: 'border-l-info-bright',
+          tint: 'bg-info-bright/[0.02] hover:bg-info-bright/[0.05]',
+        }
+      : {
+          border: 'border-l-danger-bright',
+          tint: 'bg-danger-bright/[0.02] hover:bg-danger-bright/[0.05]',
+        },
 )
+
+const resultValue = computed(() => {
+  const { sizeResult, score, ruleValue } = props.player
+  if (sizeResult) return sizeResult.group ? t(`damageSize.${sizeResult.group}`) : '—'
+  return score?.toFixed(1) ?? ruleValue ?? '—'
+})
 
 const kdaLabel = computed(
   () => `${props.player.kda.kills} / ${props.player.kda.deaths} / ${props.player.kda.assists}`,
@@ -57,17 +62,10 @@ const relationTag = computed(() =>
   <div
     :data-player-id="player.id"
     :data-layout="layout"
-    class="flex items-center border-b border-on-solid/5 px-4 py-3"
-    :class="
-      layout === 'group'
-        ? 'last:border-0'
-        : [
-            'border-l-4 transition-colors last:border-b-0',
-            highlightTeam ? [teamTone.border, teamTone.tint] : 'border-l-transparent',
-          ]
-    "
+    class="flex items-center border-b border-l-4 border-on-solid/5 px-2 py-3 transition-colors last:border-b-0 min-[400px]:px-4"
+    :class="[teamTone.border, teamTone.tint]"
   >
-    <div class="mr-3 flex w-[46px] shrink-0 flex-col items-center">
+    <div class="mr-2 flex min-h-[67px] w-[46px] shrink-0 flex-col items-center min-[400px]:mr-3">
       <div class="relative h-11 w-11">
         <img
           v-if="player.championImage"
@@ -84,13 +82,14 @@ const relationTag = computed(() =>
         >
         <div
           v-if="player.level !== null"
+          data-player-level
           class="absolute -right-1 -bottom-1 rounded-full border border-text-faint bg-surface-sunken px-1.5 text-[9px] text-on-solid"
         >
           {{ player.level }}
         </div>
       </div>
       <div
-        v-if="showRank"
+        v-if="layout === 'global' && showRank"
         class="player-rank"
         :class="player.rank === null ? undefined : `rank-${player.rank}`"
       >
@@ -114,11 +113,13 @@ const relationTag = computed(() =>
 
       <div class="mb-1.5 text-sm font-bold text-on-solid">{{ kdaLabel }}</div>
 
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-3 gap-1 min-[400px]:gap-2">
         <div v-for="stat in player.stats" :key="stat.key" class="w-full">
-          <div class="flex justify-between text-[10px] text-text-muted">
+          <div
+            class="flex flex-col text-[10px] text-text-muted min-[400px]:flex-row min-[400px]:justify-between"
+          >
             <span>{{ t(STAT_LABEL_KEYS[stat.key]) }}</span>
-            <span class="break-all text-right">{{ stat.value ?? '—' }}</span>
+            <span class="break-all min-[400px]:text-right">{{ stat.value ?? '—' }}</span>
           </div>
           <div class="stat-bar-bg">
             <div
@@ -131,22 +132,11 @@ const relationTag = computed(() =>
       </div>
     </div>
 
-    <slot name="result"
-      ><div
-        v-if="player.score !== null"
-        class="w-[45px] shrink-0 text-right font-mono text-xl font-ink"
-        :class="teamTone.score"
-      >
-        {{ player.score.toFixed(1) }}
-      </div>
-      <div
-        v-else-if="player.ruleValue != null"
-        class="w-[54px] shrink-0 break-all text-right font-mono text-xs"
-        :class="teamTone.score"
-        :title="t('matchDetail.ruleValue')"
-      >
-        {{ player.ruleValue }}
-      </div></slot
+    <div
+      :data-player-result="layout === 'global' ? '' : undefined"
+      class="w-11 shrink-0 text-right font-mono text-xs font-semibold text-on-solid tabular-nums min-[400px]:w-[54px]"
     >
+      <p v-if="layout === 'global'" class="truncate" :title="resultValue">{{ resultValue }}</p>
+    </div>
   </div>
 </template>

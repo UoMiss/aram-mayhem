@@ -111,10 +111,14 @@ describe('real home page', () => {
     expect(page.text()).toContain('正在读取当前账号')
     resolve({ source: 'real', snapshot: testHomeSnapshot() })
     await flushPromises()
-    expect(page.text()).toContain('真实玩家#CN1')
-    expect(page.text()).toContain('等级 321')
-    expect(page.text()).toContain('房间人数')
-    expect(page.text()).toContain('3 人')
+    const account = page.get('[aria-label="当前账号"]')
+    const match = page.get('[aria-labelledby="home-current-match"]')
+    expect(account.element.parentElement).toBe(match.element.parentElement)
+    expect(account.text()).toContain('真实玩家#CN1')
+    expect(account.text()).toContain('等级 321')
+    expect(account.find('button, img, .fa-user').exists()).toBe(false)
+    expect(page.text()).not.toContain('房间人数')
+    expect(page.text()).not.toContain('3 人')
     expect(page.text()).toContain('海克斯')
     expect(page.text()).toContain('地图')
     expect(page.text()).toContain('游戏类型')
@@ -166,8 +170,8 @@ describe('real home page', () => {
     })
   })
 
-  it('shows a locked rule and handles absent room metadata', async () => {
-    const flow = homeFlow()
+  it('shows a locked rule without displaying the live game player count', async () => {
+    const session = homeFlow().session!
     useMatchRulesStore(pinia).accept({
       accountKey: 'account-1',
       gameId: '42',
@@ -178,13 +182,21 @@ describe('real home page', () => {
       homeFlow({
         revision: 2,
         phase: 'in_progress',
-        session: flow.session ? { ...flow.session, gameId: '42', phase: 'in_progress' } : null,
+        session: {
+          ...session,
+          lobby: null,
+          game: { ...session.lobby!, lobbyId: null, memberCount: 10 },
+          gameId: '42',
+          phase: 'in_progress',
+        },
       }),
     )
     const page = render()
     await flushPromises()
     expect(page.get('#home-rule-text').text()).toBe('幸运数字规则')
     expect(page.text()).toContain('本局规则')
+    expect(page.text()).not.toContain('对局人数')
+    expect(page.text()).not.toContain('10 人')
     expect(page.text()).not.toContain('房间人数')
   })
 
@@ -228,6 +240,7 @@ describe('real home page', () => {
     await flushPromises()
     expect(page.text()).toContain('真实玩家#CN1')
     expect(page.find('[role="alert"]').exists()).toBe(false)
+    expect(page.get('[aria-label="当前账号"]').find('button').exists()).toBe(false)
   })
   it('polls visible home only and discards requests after leaving or unmounting', async () => {
     useUiStore(pinia).setActiveTab('history')

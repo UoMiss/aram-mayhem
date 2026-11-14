@@ -42,9 +42,11 @@ describe('browser follows the desktop UI workflow', () => {
     await connected()
     expect(useConnectionStore(pinia).isRealLcuConnected).toBe(false)
     const home = wrapper.get('#page-home')
+    expect(home.get('[aria-label="当前账号"]').text()).toContain('峡谷小米#CN1')
     expect(home.text()).toContain('等级 128')
     expect(home.text()).toContain('嚎哭深渊')
-    expect(home.text()).toContain('10 人')
+    expect(home.text()).not.toContain('房间人数')
+    expect(home.text()).not.toContain('10 人')
     expect(home.findAll('li')).toHaveLength(5)
     useUiStore(pinia).setActiveTab('history')
     await flushPromises()
@@ -53,17 +55,55 @@ describe('browser follows the desktop UI workflow', () => {
     history.openMatchDetail('9000001')
     await flushPromises()
     expect(useSettlementStore(pinia).snapshot?.id).toBe('9000001')
-    expect(wrapper.get('#page-match-detail').text()).toContain('本局最后 3 名')
+    expect(wrapper.get('[data-red-packet] h3').text()).toContain(' · 3 人')
     history.openMatchDetail('9000002')
     await flushPromises()
     expect(useSettlementStore(pinia).snapshot?.id).toBe('9000002')
-    expect(wrapper.get('#page-match-detail').text()).toContain('好友排行')
-    expect(wrapper.get('#page-match-detail').text()).toContain('本局最后 2 名')
+    expect(wrapper.get('#btn-layout-global').text()).toBe('结算')
+    expect(wrapper.get('[data-red-packet] h3').text()).toContain(' · 2 人')
+    expect(wrapper.get('[data-red-packet]').find('p').exists()).toBe(false)
     history.openMatchDetail('9000003')
     await flushPromises()
-    expect(wrapper.get('#settlement-lucky-digit').text()).toContain('7')
+    expect(wrapper.get('[data-red-packet] #settlement-outcome strong').text()).toBe('7')
     await wrapper.get('[aria-label="返回战绩"]').trigger('click')
     expect(useUiStore(pinia).activeTab).toBe('history')
+  })
+  it('opens each rule as a text dialog without changing the active rule', async () => {
+    await connected()
+    useUiStore(pinia).setActiveTab('tools')
+    await flushPromises()
+    const rule = useRulesStore(pinia).currentRule
+    const criteria = [
+      ['damage', '精确总伤害从高到低排名'],
+      ['tail', '从对英雄伤害的个位向高位逐位比较'],
+      ['lucky', '等距时个位较大者优先'],
+      ['damage_size', '0～4 为小，5～9 为大'],
+    ] as const
+    for (const [key, criterion] of criteria) {
+      const trigger = wrapper.get(`[data-rule="${key}"] button[aria-haspopup="dialog"]`)
+      await trigger.trigger('click')
+      await flushPromises()
+      const id = trigger.attributes('aria-controls')!
+      const dialog = document.getElementById(id)!
+      expect(dialog.getAttribute('role')).toBe('dialog')
+      expect(
+        Array.from(dialog.querySelectorAll('h3'), (heading) => heading.textContent?.trim()),
+      ).toEqual(['玩法说明', '红包判定', '结算规则'])
+      expect(dialog.textContent).toContain(criterion)
+      expect(dialog.textContent).toContain('其他对局仅计算本人和本局好友')
+      expect(dialog.querySelector('img')).toBeNull()
+      if (key === 'damage_size') {
+        expect(dialog.textContent).toContain('概率各为 50%')
+        expect(dialog.textContent).toContain('可能无人发，也可能全员发')
+      } else {
+        expect(dialog.textContent).toContain('伤害相同则并列')
+        expect(dialog.textContent).toContain('并列玩家都发')
+      }
+      expect(useRulesStore(pinia).currentRule).toBe(rule)
+      dialog.querySelector<HTMLButtonElement>('button[aria-label="关闭规则说明"]')!.click()
+      await flushPromises()
+      expect(document.getElementById(id)).toBeNull()
+    }
   })
   it.each([6, 8, 10])(
     'refreshes %i participants and uses the same three-second team draw',
@@ -140,10 +180,34 @@ describe('browser follows the desktop UI workflow', () => {
       expect(settlement.status).toBe('complete')
       const result = structuredClone(settlement.snapshot!.damageSize!)
       expect(result.participants).toHaveLength(custom ? 8 : 4)
-      expect(wrapper.get('[data-size-draw-card]').text()).toContain('本局伤害大小开奖')
-      expect(wrapper.get('[data-damage-size]').findAll('[data-player-id]')).toHaveLength(
-        custom ? 8 : 4,
+      expect(wrapper.get('[data-red-packet] #settlement-outcome').text()).toContain('本局开奖')
+      const group = wrapper.get('#layout-group')
+      for (const side of ['red', 'blue']) {
+        expect(group.get(`[data-team-section="${side}"]`).findAll('[data-player-id]')).toHaveLength(
+          custom ? 4 : 5,
+        )
+      }
+      const eligibleIds = ['big', 'small'].flatMap((size) =>
+        result.participants.filter((player) => player.group === size).map((player) => player.id),
       )
+      expect(group.find('[data-player-result]').exists()).toBe(false)
+      const senders = wrapper.get('[data-red-packet]').text()
+      await wrapper.get('#btn-layout-global').trigger('click')
+      expect(
+        wrapper
+          .get('#layout-global')
+          .findAll('[data-player-id]')
+          .map((row) => row.attributes('data-player-id')),
+      ).toEqual(eligibleIds)
+      const actualSizes = wrapper
+        .get('#layout-global')
+        .findAll('[data-player-result]')
+        .map((value) => value.text())
+      expect(actualSizes).toEqual([
+        ...result.participants.filter((player) => player.group === 'big').map(() => '大'),
+        ...result.participants.filter((player) => player.group === 'small').map(() => '小'),
+      ])
+      expect(wrapper.get('[data-red-packet]').text()).toBe(senders)
       expect(settlement.snapshot!.players.every((p) => p.rank === null)).toBe(true)
       const target = useHistoryStore(pinia).liveSettlement!
       useUiStore(pinia).setActiveTab('tools')

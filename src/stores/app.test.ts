@@ -28,7 +28,7 @@ describe('app store', () => {
     expect(app.currentRule).toBe('damage')
     expect(app.homeView).toEqual({
       isConnected: false,
-      summonerName: '峡谷小米',
+      summonerName: '峡谷小米#CN1',
       roomPhase: null,
       gameMode: null,
     })
@@ -57,7 +57,7 @@ describe('app store', () => {
 
     expect(app.activeTab).toBe('home')
     expect(app.currentRule).toBe('damage')
-    expect(app.homeView.summonerName).toBe('峡谷小米')
+    expect(app.homeView.summonerName).toBe('峡谷小米#CN1')
     expect(app.homeView.roomPhase).toBeNull()
     expect(app.homeView.gameMode).toBeNull()
   })

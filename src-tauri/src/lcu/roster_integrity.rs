@@ -1,7 +1,7 @@
 //! Conservative evidence for a custom-room roster. Missing flags never prove humanity.
 use crate::lcu::{
     error::{LcuError, LcuErrorCode},
-    participants::{Participant, ParticipantSnapshot, player_name},
+    participants::{Participant, ParticipantSide, ParticipantSnapshot, player_name},
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -126,10 +126,29 @@ pub fn inspect_custom(value: &Value, snapshot: &mut ParticipantSnapshot) -> Resu
         && (blue.is_some_and(|a| !a.is_empty())
             || red.is_some_and(|a| !a.is_empty())
             || members.is_none_or(Vec::is_empty));
-    let candidates: Vec<&Value> = if reliable_teams {
-        blue.into_iter().chain(red).flatten().collect()
+    let candidates: Vec<_> = if reliable_teams {
+        blue.into_iter()
+            .flatten()
+            .map(|row| (row, Some(ParticipantSide::Blue)))
+            .chain(
+                red.into_iter()
+                    .flatten()
+                    .map(|row| (row, Some(ParticipantSide::Red))),
+            )
+            .collect()
     } else {
-        members.into_iter().flatten().collect()
+        members
+            .into_iter()
+            .flatten()
+            .map(|row| {
+                let side = match row.get("teamId").and_then(Value::as_u64) {
+                    Some(100) => Some(ParticipantSide::Blue),
+                    Some(200) => Some(ParticipantSide::Red),
+                    _ => None,
+                };
+                (row, side)
+            })
+            .collect()
     };
     snapshot.evidence = if reliable_teams {
         RosterEvidence::CustomTeams
@@ -140,7 +159,7 @@ pub fn inspect_custom(value: &Value, snapshot: &mut ParticipantSnapshot) -> Resu
     };
     let mut players = BTreeMap::<String, Participant>::new();
     let mut unresolved = 0;
-    for row in candidates {
+    for (row, side) in candidates {
         if excluded(row) {
             continue;
         }
@@ -152,17 +171,18 @@ pub fn inspect_custom(value: &Value, snapshot: &mut ParticipantSnapshot) -> Resu
             conflict = true;
             continue;
         }
-        let known_role =
-            reliable_teams || matches!(row.get("teamId").and_then(Value::as_u64), Some(100 | 200));
-        if !known_role {
+        if side.is_none() {
             unresolved += 1;
             continue;
         }
         if !human_ids.contains(&id) {
             unresolved += 1;
         }
-        if players.contains_key(&id) {
+        if let Some(existing) = players.get_mut(&id) {
             conflict = true;
+            if existing.side != side {
+                existing.side = None;
+            }
             continue;
         }
         players.insert(
@@ -170,6 +190,7 @@ pub fn inspect_custom(value: &Value, snapshot: &mut ParticipantSnapshot) -> Resu
             Participant {
                 id,
                 name: player_name(row),
+                side,
             },
         );
     }
@@ -325,17 +346,43 @@ mod tests {
     }
     #[test]
     fn swapping_sides_does_not_change_the_roster() {
-        let value = room(6);
+        let mut value = room(6);
+        let player = value["gameConfig"]["customTeam100"]
+            .as_array_mut()
+            .unwrap()
+            .pop()
+            .unwrap();
+        value["gameConfig"]["customTeam200"]
+            .as_array_mut()
+            .unwrap()
+            .push(player);
         let mut moved = value.clone();
         moved["gameConfig"]["customTeam100"] = value["gameConfig"]["customTeam200"].clone();
         moved["gameConfig"]["customTeam200"] = value["gameConfig"]["customTeam100"].clone();
         let a = parse_participants(Some(&value), "self".into()).unwrap();
         let b = parse_participants(Some(&moved), "self".into()).unwrap();
         assert_eq!(a.completeness, b.completeness);
+        assert_eq!(a.completeness, RosterCompleteness::Complete);
+        assert_eq!(
+            a.players
+                .iter()
+                .filter(|p| p.side == Some(ParticipantSide::Blue))
+                .count(),
+            2
+        );
+        assert_eq!(
+            b.players
+                .iter()
+                .filter(|p| p.side == Some(ParticipantSide::Blue))
+                .count(),
+            4
+        );
         assert_eq!(
             a.players.iter().map(|p| &p.id).collect::<Vec<_>>(),
             b.players.iter().map(|p| &p.id).collect::<Vec<_>>()
         );
+        assert_eq!(a.players[0].side, Some(ParticipantSide::Blue));
+        assert_eq!(b.players[0].side, Some(ParticipantSide::Red));
     }
     #[test]
     fn duplicate_team_slots_and_malformed_arrays_fail_closed() {

@@ -69,6 +69,7 @@ describe('native updater settings', () => {
   it('downloads and verifies before allowing an explicitly confirmed installation', async () => {
     await checkAvailable()
     expect(wrapper.text()).toContain('发现新版本 v0.2.0')
+    expect(wrapper.text()).not.toContain('退出助手')
     let finish!: (value: UpdateSnapshot) => void
     api.downloadUpdate.mockImplementationOnce((progress: (snapshot: UpdateSnapshot) => void) => {
       progress(

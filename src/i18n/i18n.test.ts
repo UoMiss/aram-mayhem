@@ -39,7 +39,7 @@ describe('zh-CN i18n resource', () => {
 
     expect(t('connection.details')).toBe('连接详情')
     expect(t('history.recentHint', { count: 20 })).toBe('仅显示最近 20 局 · 点击查看结算')
-    expect(t('matchDetail.redPacketNote', { count: 5 })).toBe('本局最后 5 名，请准备好你们的红包！')
+    expect(t('matchDetail.redPacketPeople', { count: 5 })).toBe(' · 5 人')
     expect(t('team.participantCount', { count: 8 })).toBe('8 人')
     expect(t('team.groupCount', { count: 4 })).toBe('4 人')
     expect(t('team.shuffling', { count: 3 })).toBe('组队中 3s')

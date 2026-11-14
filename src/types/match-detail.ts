@@ -1,4 +1,5 @@
 import type { MatchKda } from '@/types/history'
+import type { SizeOutcome } from '@/types/settlement-api'
 
 export type TeamSide = 'red' | 'blue'
 export type PlayerRelation = 'self' | 'friend'
@@ -15,7 +16,7 @@ export interface SettlementStat {
 export interface SettlementPlayer {
   id: string
   teamId?: number
-  team: TeamSide
+  team: TeamSide | null
   champion: string
   championImage: string
   level: number | null
@@ -26,6 +27,9 @@ export interface SettlementPlayer {
   stats: readonly SettlementStat[]
   score: number | null
   ruleValue?: string | null
+  sizeResult?: {
+    group: SizeOutcome | null
+  }
 }
 
 export interface RedPacketEntry {

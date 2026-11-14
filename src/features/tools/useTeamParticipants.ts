@@ -7,7 +7,7 @@ import { getCustomParticipants } from '@/services/participants.service'
 import { LcuServiceError, normalizeLcuError } from '@/services/desktop-error'
 import { isParticipantSnapshot } from '@/shared/ipc/participants-contract'
 import type { TeamPlayer } from '@/types/tools'
-import type { ParticipantSnapshot } from '@/types/participants'
+import type { LobbyParticipant, ParticipantSnapshot } from '@/types/participants'
 
 export const PARTICIPANTS_REFRESH_MS = 5000
 export function useTeamParticipants(isOpen: () => boolean) {
@@ -17,7 +17,7 @@ export function useTeamParticipants(isOpen: () => boolean) {
   const isDesktop = computed(() => connection.isDesktopRuntime)
   const active = computed(() => isOpen() && connection.canReadAccountData)
   const snapshot = shallowRef<ParticipantSnapshot | null>(null)
-  const players = shallowRef<readonly TeamPlayer[]>([])
+  const players = shallowRef<readonly (TeamPlayer & Pick<LobbyParticipant, 'side'>)[]>([])
   const status = computed(() => snapshot.value?.status ?? null)
   const isLoading = ref(false)
   const errorCode = ref<string | null>(null)
@@ -106,6 +106,7 @@ export function useTeamParticipants(isOpen: () => boolean) {
         players.value = sorted.map((player, index) => ({
           id: player.id,
           name: player.name ?? t('team.unknownPlayer', { index: index + 1 }),
+          side: player.side,
         }))
         return complete.value
       } catch (error) {

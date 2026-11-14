@@ -20,6 +20,12 @@ export function testParticipants(
     players: Array.from({ length: count }, (_, index) => ({
       id: `player-${index + 1}`,
       name: `真实玩家${index + 1}`,
+      side:
+        overrides.status && overrides.status !== 'custom'
+          ? null
+          : index < count / 2
+            ? 'blue'
+            : 'red',
     })),
     ...overrides,
   }

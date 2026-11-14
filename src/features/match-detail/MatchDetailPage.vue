@@ -2,7 +2,6 @@
 import { useGameInfo } from '@/composables/useGameInfo'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import DamageSizeResult from './components/DamageSizeResult.vue'
 import SettlementLayoutToggle from './components/SettlementLayoutToggle.vue'
 import RedPacketNotice from '@/features/match-detail/components/RedPacketNotice.vue'
 import SettlementRanking from '@/features/match-detail/components/SettlementRanking.vue'
@@ -170,29 +169,69 @@ const screenshotRef = ref<HTMLElement | null>(null)
 const players = computed(() =>
   live.value ? settlementPlayers(live.value, (id) => t('matchDetail.unknownPlayer', { id })) : [],
 )
+const sizeResult = computed(() => live.value?.damageSize)
+const sizeOutcome = computed(() => sizeResult.value?.outcome ?? null)
 const redPackets = computed(() => {
+  const size = sizeResult.value
+  if (size) {
+    if (size.status !== 'ready' && size.status !== 'conflict') return null
+    const senders = new Set(size.redPacketPlayerIds ?? [])
+    const entries = size.participants
+      .filter((player) => senders.has(player.id))
+      .map((player) => player.nickname ?? t('matchDetail.unknownPlayer', { id: player.id }))
+    return {
+      entries,
+      quota: undefined,
+      notice: size.status === 'conflict' ? t('damageSize.conflict') : null,
+    }
+  }
   const result = live.value ? redPacketSelection(live.value) : null
   if (!result) return null
   return {
     quota: result.quota,
-    entries: result.entries.map((player) => ({
-      rank: player.rank!,
-      name: player.nickname ?? t('matchDetail.unknownPlayer', { id: player.id }),
-    })),
+    notice: null,
+    entries: result.entries.map(
+      (player) => player.nickname ?? t('matchDetail.unknownPlayer', { id: player.id }),
+    ),
   }
 })
-const redPlayers = computed(() => players.value.filter((player) => player.team === 'red'))
-const bluePlayers = computed(() => players.value.filter((player) => player.team === 'blue'))
-const redWin = computed(() => live.value?.players.find((player) => player.teamId === 200)?.win)
-const isFriendsRanking = computed(
-  () => live.value?.rankingStatus === 'ready' && !live.value.isCustom,
-)
-const blueWin = computed(() => live.value?.players.find((player) => player.teamId === 100)?.win)
-const globalPlayers = computed(() =>
-  players.value
+const packetStatus = computed(() => {
+  if (redPackets.value) return null
+  if (sizeResult.value) return t(`damageSize.${sizeResult.value.reason ?? 'pending'}`)
+  return rankNote.value ?? t('matchDetail.redPacketCountUnsupported')
+})
+const teams = computed(() => {
+  const ids = [...new Set(players.value.map((player) => player.teamId))]
+  const order = (id: number) => (id === 200 ? 0 : id === 100 ? 1 : 2)
+  return ids
+    .sort((left, right) => order(left) - order(right))
+    .map((id) => {
+      const members = players.value.filter((player) => player.teamId === id)
+      const sourceMembers = live.value?.players.filter((player) => player.teamId === id) ?? []
+      const win = sourceMembers[0]?.win
+      return {
+        id,
+        side: members[0]?.team ?? undefined,
+        players: members,
+        win: sourceMembers.every((player) => player.win === win) ? win : undefined,
+      }
+    })
+})
+const globalPlayers = computed(() => {
+  if (sizeResult.value) {
+    const order = { big: 0, small: 1 }
+    return players.value
+      .filter((player) => player.sizeResult !== undefined)
+      .sort(
+        (left, right) =>
+          (left.sizeResult?.group ? order[left.sizeResult.group] : 2) -
+          (right.sizeResult?.group ? order[right.sizeResult.group] : 2),
+      )
+  }
+  return players.value
     .filter((player) => live.value?.rankingStatus !== 'ready' || player.rank !== null)
-    .sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0)),
-)
+    .sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))
+})
 let copyGeneration = 0
 let disposed = false
 watch(
@@ -378,74 +417,67 @@ async function copyScreenshot() {
           data-screenshot-root
           class="space-y-3 rounded-xl border border-on-solid/5 bg-shell p-3"
         >
-          <DamageSizeResult
-            v-if="live?.damageSize"
-            v-model:layout="layout"
-            :result="live.damageSize"
-            :players="players"
-          />
-          <template v-else>
-            <div
-              v-if="luckyDigit !== null"
-              id="settlement-lucky-digit"
-              class="flex items-center gap-3 rounded-xl border border-brand-bright/40 bg-linear-to-r from-brand-strong/25 to-surface-raised px-4 py-3"
-            >
-              <i class="fa-solid fa-dice text-xl text-brand-light" aria-hidden="true"></i>
-              <span class="text-sm font-bold text-brand-soft">{{
-                t('matchDetail.luckyDrawLabel')
-              }}</span>
-              <strong
-                class="ml-auto grid size-12 place-items-center rounded-lg bg-brand-strong/35 font-ink text-3xl tabular-nums text-on-solid"
+          <RedPacketNotice
+            data-red-packet
+            :entries="redPackets?.entries ?? []"
+            :quota="redPackets?.quota"
+            :preview="!lockedRule"
+            :status="packetStatus"
+            :notice="redPackets?.notice"
+          >
+            <template #outcome>
+              <div
+                v-if="luckyDigit !== null || sizeOutcome"
+                id="settlement-outcome"
+                class="flex shrink-0 items-center gap-1 rounded-md bg-brand-strong/25 px-2 py-0.5 text-[11px] text-brand-soft"
               >
-                {{ luckyDigit }}
-              </strong>
-            </div>
-            <RedPacketNotice
-              v-if="redPackets"
-              :entries="redPackets.entries"
-              :quota="redPackets.quota"
-              :preview="!lockedRule"
-            />
-            <div
-              class="glass-card overflow-hidden rounded-2xl border border-on-solid/5 screenshot-mode"
-            >
-              <div class="border-b border-on-solid/5 bg-surface-sunken/50 p-2">
-                <SettlementLayoutToggle
-                  v-model="layout"
-                  :global-label="
-                    t(
-                      live && live.rankingStatus !== 'ready'
-                        ? 'matchDetail.allPlayers'
-                        : isFriendsRanking
-                          ? 'matchDetail.friendsRanking'
-                          : 'matchDetail.global',
-                    )
+                <i class="fa-solid fa-dice" aria-hidden="true"></i>
+                <span>{{
+                  t(luckyDigit !== null ? 'matchDetail.luckyDrawLabel' : 'damageSize.outcome')
+                }}</span>
+                <strong
+                  class="min-w-4 text-center font-ink text-sm tabular-nums"
+                  :class="
+                    sizeOutcome === 'big'
+                      ? 'text-danger-light'
+                      : sizeOutcome === 'small'
+                        ? 'text-info-light'
+                        : 'text-on-solid'
                   "
-                />
-                <div class="space-y-1 px-2 text-[11px] text-text-muted">
-                  <p v-if="!connection.isDesktopRuntime" class="pt-2">
-                    {{ t('matchDetail.demo') }}
-                  </p>
-                  <p v-else-if="!lockedRule" class="pt-2">{{ t('rules.previewOnly') }}</p>
-                  <p v-if="rankNote" class="pt-2">{{ rankNote }}</p>
-                  <p v-if="live?.rankingStatus === 'ready' && !redPackets" class="pt-2">
-                    {{ t('matchDetail.redPacketCountUnsupported') }}
-                  </p>
-                </div>
+                  >{{ luckyDigit ?? (sizeOutcome ? t(`damageSize.${sizeOutcome}`) : '') }}</strong
+                >
               </div>
-
-              <div v-show="layout === 'group'" id="layout-group" class="space-y-3 p-3">
-                <SettlementTeamSection side="red" :players="redPlayers" :win="redWin" />
-                <SettlementTeamSection side="blue" :players="bluePlayers" :win="blueWin" />
-              </div>
-
-              <SettlementRanking
-                v-show="layout === 'global'"
-                id="layout-global"
-                :players="globalPlayers"
+            </template>
+          </RedPacketNotice>
+          <div
+            class="glass-card overflow-hidden rounded-2xl border border-on-solid/5 screenshot-mode"
+          >
+            <div class="border-b border-on-solid/5 bg-surface-sunken/50 p-2">
+              <SettlementLayoutToggle v-model="layout" />
+              <p
+                v-if="!connection.isDesktopRuntime || !lockedRule"
+                class="px-2 pt-2 text-[11px] text-text-muted"
+              >
+                {{ t(connection.isDesktopRuntime ? 'rules.previewOnly' : 'matchDetail.demo') }}
+              </p>
+            </div>
+            <div v-if="layout === 'group'" id="layout-group" class="space-y-3 py-3">
+              <SettlementTeamSection
+                v-for="team in teams"
+                :key="team.id"
+                :team-id="team.id"
+                :side="team.side"
+                :players="team.players"
+                :win="team.win"
               />
             </div>
-          </template>
+            <SettlementRanking
+              v-else
+              id="layout-global"
+              :players="globalPlayers"
+              :show-rank="!sizeResult"
+            />
+          </div>
         </div>
       </template>
     </div>

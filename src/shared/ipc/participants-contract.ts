@@ -7,6 +7,7 @@ const participant = object<LobbyParticipant>({
   name: nullable(
     (value): value is string => string(value) && value.trim().length > 0 && value.length <= 641,
   ),
+  side: nullable((value): value is 'blue' | 'red' => value === 'blue' || value === 'red'),
 })
 const snapshot = object<ParticipantSnapshot>({
   completeness: (v): v is ParticipantSnapshot['completeness'] =>
@@ -51,6 +52,7 @@ export function isParticipantSnapshot(value: unknown): value is ParticipantSnaps
         value.evidence === 'custom_teams' &&
         value.issue === null &&
         value.unresolvedCount === 0 &&
+        value.players.every((player) => player.side !== null) &&
         value.context !== null &&
         value.lobbyKey !== null)) &&
     (value.status === 'custom' || value.context === null) &&

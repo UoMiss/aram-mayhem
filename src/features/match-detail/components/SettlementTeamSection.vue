@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { TEAM_BADGE_KEYS, TEAM_TITLE_KEYS } from '@/i18n/labels'
+import { TEAM_BADGE_KEYS } from '@/i18n/labels'
 import SettlementPlayerRow from '@/features/match-detail/components/SettlementPlayerRow.vue'
 import type { SettlementPlayer, TeamSide } from '@/types/match-detail'
 
@@ -9,12 +9,20 @@ const props = withDefaults(
   defineProps<{
     win?: boolean
     side?: TeamSide
-    title?: string
+    teamId: number
     players: readonly SettlementPlayer[]
   }>(),
-  { win: undefined, side: undefined, title: undefined },
+  { win: undefined, side: undefined },
 )
 const { t } = useI18n({ useScope: 'global' })
+const title = computed(() =>
+  props.side ? t(TEAM_BADGE_KEYS[props.side]) : t('matchDetail.team', { id: props.teamId }),
+)
+const heading = computed(() =>
+  props.win === undefined
+    ? title.value
+    : `${title.value} · ${t(props.win ? 'history.results.victory' : 'history.results.defeat')}`,
+)
 
 const teamTone = computed(() =>
   !props.side
@@ -52,30 +60,24 @@ const totalKda = computed(() => {
 <template>
   <div
     :data-team-section="side ?? title"
-    class="overflow-hidden rounded-xl border border-on-solid/5 border-l-4"
-    :class="[teamTone.border, side === 'blue' ? 'mt-3' : '']"
+    class="overflow-hidden rounded-xl border-y border-on-solid/5"
   >
     <div
-      class="flex items-center justify-between border-b border-on-solid/5 px-4 py-2"
-      :class="teamTone.header"
+      class="flex items-center justify-between border-b border-l-4 border-on-solid/5 px-2 py-2 min-[400px]:px-4"
+      :class="[teamTone.header, teamTone.border]"
     >
-      <span class="text-xs font-bold" :class="teamTone.title">{{
-        title ??
-        (!side
-          ? ''
-          : win === undefined
-            ? t(TEAM_TITLE_KEYS[side])
-            : `${t(TEAM_BADGE_KEYS[side])} · ${t(win ? 'history.results.victory' : 'history.results.defeat')}`)
-      }}</span>
+      <span class="text-xs font-bold" :class="teamTone.title">{{ heading }}</span>
       <span class="text-xs font-bold tracking-wider text-text-muted">{{ totalKda }}</span>
     </div>
 
-    <slot
-      ><SettlementPlayerRow
+    <div role="list">
+      <SettlementPlayerRow
         v-for="player in players"
         :key="player.id"
         :player="player"
         layout="group"
-    /></slot>
+        role="listitem"
+      />
+    </div>
   </div>
 </template>

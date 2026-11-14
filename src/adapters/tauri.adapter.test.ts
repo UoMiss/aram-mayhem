@@ -316,7 +316,7 @@ describe('participant IPC contract', () => {
   beforeEach(() => {
     invokeMock.mockReset()
   })
-  it('validates unique roster identities, statuses and names', async () => {
+  it('validates unique roster identities, statuses, names and sides', async () => {
     const snapshot = {
       accountKey: 'account-1',
       lobbyKey: 'room-1',
@@ -328,7 +328,7 @@ describe('participant IPC contract', () => {
       context: { sessionKey: 'session-1', connectionGeneration: 1 },
       status: 'custom',
       updatedAt: 1,
-      players: [{ id: 'one', name: 'Player' }],
+      players: [{ id: 'one', name: 'Player', side: 'blue' }],
     }
     invokeMock.mockResolvedValueOnce(snapshot)
     await expect(tauriParticipantsAdapter.getCustomParticipants()).resolves.toEqual(snapshot)
@@ -336,7 +336,9 @@ describe('participant IPC contract', () => {
     for (const invalid of [
       { ...snapshot, players: [...snapshot.players, ...snapshot.players] },
       { ...snapshot, status: 'not_custom' },
-      { ...snapshot, players: [{ id: '', name: 'Bad' }] },
+      { ...snapshot, players: [{ ...snapshot.players[0], id: '' }] },
+      { ...snapshot, players: [{ ...snapshot.players[0], side: 'observer' }] },
+      { ...snapshot, players: [{ ...snapshot.players[0], side: null }] },
       { ...snapshot, eligibleCount: 8 },
       { ...snapshot, unresolvedCount: 1 },
       { ...snapshot, context: null },

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { SettlementLayout } from '@/types/match-detail'
-defineProps<{ globalLabel: string }>()
 const layout = defineModel<SettlementLayout>({ required: true })
 const { t } = useI18n({ useScope: 'global' })
 </script>
@@ -28,7 +27,7 @@ const { t } = useI18n({ useScope: 'global' })
         :class="value === 'group' ? 'fa-solid fa-layer-group' : 'fa-solid fa-ranking-star'"
         aria-hidden="true"
       ></i>
-      {{ value === 'group' ? t('matchDetail.group') : globalLabel }}
+      {{ t(value === 'group' ? 'matchDetail.group' : 'matchDetail.global') }}
     </button>
   </div>
 </template>

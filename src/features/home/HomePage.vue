@@ -30,7 +30,6 @@ const displayedRule = computed(() =>
 const ruleLabel = computed(() =>
   displayedRule.value ? t(SCORE_RULE_NAME_KEYS[displayedRule.value]) : t('rules.none'),
 )
-const memberCount = computed(() => home.lobby?.memberCount ?? home.liveGame?.memberCount)
 const roomPhase = computed(() => home.homeView.roomPhase)
 const roomPhaseLabel = computed(() => {
   const phase = roomPhase.value
@@ -56,89 +55,57 @@ function openRecent(matchId: string) {
 </script>
 
 <template>
-  <section
-    id="page-home"
-    class="flex min-h-full flex-col justify-center gap-3 pb-3 min-[400px]:gap-4"
-  >
-    <section
-      aria-labelledby="home-account"
-      class="glass-card flex min-h-16 items-center gap-3 rounded-xl px-3 py-2.5"
-      :aria-busy="home.isLoading"
-    >
-      <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-brand/15 text-brand-light">
-        <i class="fa-solid fa-user" aria-hidden="true"></i>
-      </span>
-
-      <div class="min-w-0 flex-1">
-        <h2 id="home-account" class="text-[11px] font-medium text-text-muted">
-          {{ t('home.currentAccount') }}
-        </h2>
-        <p
-          v-if="home.isLoading && !home.snapshot"
-          role="status"
-          class="mt-0.5 text-xs text-text-muted"
-        >
+  <section id="page-home" class="flex flex-col gap-5 pb-3">
+    <div class="overflow-hidden rounded-2xl border border-brand/30 bg-card">
+      <section
+        :aria-label="t('home.currentAccount')"
+        :aria-busy="home.isLoading"
+        class="flex min-h-16 flex-col justify-center border-b border-brand/20 px-4 py-3 min-[400px]:px-5"
+      >
+        <p v-if="home.isLoading && !home.snapshot" role="status" class="text-sm text-text-muted">
           {{ t('home.loading') }}
         </p>
-        <div v-else-if="home.errorCode" role="alert" class="mt-0.5">
-          <p class="text-xs text-danger-light">{{ errorText }}</p>
+        <div v-else-if="home.errorCode" role="alert" class="flex flex-wrap items-center gap-2">
+          <p class="text-sm text-danger-light">{{ errorText }}</p>
           <button
             type="button"
-            class="mt-1 cursor-pointer text-xs text-brand-light underline"
+            class="cursor-pointer rounded px-1 py-1 text-xs font-medium text-brand-light underline focus-visible:outline-2 focus-visible:outline-ring"
             @click="refresh"
           >
             {{ t('history.retry') }}
           </button>
         </div>
-        <div v-else class="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <p class="break-all text-sm font-semibold text-text-soft">
+        <div v-else class="space-y-0.5">
+          <p class="text-base leading-snug font-semibold break-words text-text-soft">
             {{ home.homeView.summonerName ?? t('home.nameUnavailable') }}
           </p>
-          <span
-            v-if="home.snapshot?.summonerLevel != null"
-            class="text-xs whitespace-nowrap text-text-muted"
-          >
+          <p v-if="home.snapshot?.summonerLevel != null" class="text-xs text-text-muted">
             {{ t('home.level', { level: home.snapshot.summonerLevel }) }}
-          </span>
+          </p>
         </div>
-      </div>
+      </section>
 
-      <button
-        v-if="connection.canReadAccountData && !home.errorCode"
-        type="button"
-        :aria-label="t('home.refresh')"
-        :title="t('home.refresh')"
-        :disabled="home.isLoading"
-        class="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg border border-on-solid/10 text-brand-light hover:bg-brand/20 disabled:cursor-not-allowed disabled:opacity-50"
-        @click="refresh"
-      >
-        <i class="fa-solid fa-arrows-rotate text-xs" aria-hidden="true"></i>
-      </button>
-    </section>
-
-    <section
-      aria-labelledby="home-current-match"
-      class="overflow-hidden rounded-2xl border border-brand/30 bg-card"
-    >
-      <div
-        class="bg-linear-to-br from-brand-surface/65 to-card px-4 py-3 min-[400px]:px-5 min-[400px]:py-4"
+      <section
+        aria-labelledby="home-current-match"
+        class="bg-linear-to-br from-brand-surface/40 to-card px-4 py-4 min-[400px]:px-5"
       >
         <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <h2 id="home-current-match" class="text-xs font-semibold tracking-wide text-brand-light">
             {{ t('home.currentMatch') }}
           </h2>
-          <span
-            v-if="connection.isDesktopRuntime && roomPhase"
-            class="flex items-center gap-1.5 rounded-full bg-brand/15 px-2 py-0.5 text-[11px] text-brand-pale"
-          >
-            <span class="size-1.5 rounded-full bg-brand-light" aria-hidden="true"></span>
-            {{ t('home.liveBadge') }}
-          </span>
-          <span v-else-if="!connection.isDesktopRuntime" class="text-[11px] text-text-muted">
+          <span v-if="!connection.isDesktopRuntime" class="text-[11px] text-text-muted">
             {{ t('connection.demoData') }}
           </span>
         </div>
-        <p class="mt-2 text-3xl font-bold tracking-wide text-on-solid" role="status">
+        <p
+          class="mt-1 flex items-center gap-2.5 text-2xl leading-tight font-bold text-on-solid min-[400px]:text-[26px]"
+          role="status"
+        >
+          <span
+            v-if="roomPhase && roomPhase !== 'none' && roomPhase !== 'unknown'"
+            class="size-2 shrink-0 rounded-full bg-brand ring-4 ring-brand/15"
+            aria-hidden="true"
+          ></span>
           {{ roomPhaseLabel }}
         </p>
         <p
@@ -149,56 +116,30 @@ function openRecent(matchId: string) {
         >
           {{ t(`gameflow.readyCheck.${home.readyCheckStatus}`) }}
         </p>
-      </div>
-
-      <dl class="divide-y divide-on-solid/5 border-t border-brand/20 px-4 min-[400px]:px-5">
-        <div class="flex items-baseline justify-between gap-3 py-2 min-[400px]:py-2.5">
-          <dt class="flex shrink-0 items-center gap-2 text-xs text-text-muted">
-            <i class="fa-solid fa-map w-4 text-center text-brand-light" aria-hidden="true"></i>
-            {{ t('gameInfo.map') }}
-          </dt>
-          <dd class="min-w-0 break-words text-right text-sm font-semibold text-text-soft">
-            {{ home.gameInfo.mapLabel }}
-          </dd>
-        </div>
-        <div class="flex items-baseline justify-between gap-3 py-2 min-[400px]:py-2.5">
-          <dt class="flex shrink-0 items-center gap-2 text-xs text-text-muted">
-            <i class="fa-solid fa-gamepad w-4 text-center text-brand-light" aria-hidden="true"></i>
-            {{ t('gameInfo.gameType') }}
-          </dt>
-          <dd class="min-w-0 break-words text-right text-sm font-semibold text-text-soft">
-            {{ home.gameInfo.gameTypeLabel }}
-          </dd>
-        </div>
-        <div
-          v-if="memberCount != null"
-          class="flex items-baseline justify-between gap-3 py-2 min-[400px]:py-2.5"
-        >
-          <dt class="flex shrink-0 items-center gap-2 text-xs text-text-muted">
-            <i class="fa-solid fa-users w-4 text-center text-brand-light" aria-hidden="true"></i>
-            {{ t(home.lobby ? 'home.roomSize' : 'home.gameSize') }}
-          </dt>
-          <dd class="text-right text-sm font-semibold tabular-nums text-text-soft">
-            {{ t('home.peopleCount', { count: memberCount }) }}
-          </dd>
-        </div>
-        <div class="flex items-baseline justify-between gap-3 py-2 min-[400px]:py-2.5">
-          <dt class="flex shrink-0 items-center gap-2 text-xs text-text-muted">
-            <i
-              class="fa-solid fa-calculator w-4 text-center text-brand-light"
-              aria-hidden="true"
-            ></i>
-            {{ t(currentMatch ? 'home.lockedRule' : 'home.scoreRule') }}
-          </dt>
-          <dd
-            id="home-rule-text"
-            class="min-w-0 break-words text-right text-sm font-semibold text-text-soft"
-          >
-            {{ ruleLabel }}
-          </dd>
-        </div>
-      </dl>
-    </section>
+        <dl class="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 min-[400px]:grid-cols-3">
+          <div class="min-w-0 space-y-0.5">
+            <dt class="text-xs text-text-muted">{{ t('gameInfo.map') }}</dt>
+            <dd class="text-sm font-semibold break-words text-text-soft">
+              {{ home.gameInfo.mapLabel }}
+            </dd>
+          </div>
+          <div class="min-w-0 space-y-0.5">
+            <dt class="text-xs text-text-muted">{{ t('gameInfo.gameType') }}</dt>
+            <dd class="text-sm font-semibold break-words text-text-soft">
+              {{ home.gameInfo.gameTypeLabel }}
+            </dd>
+          </div>
+          <div class="col-span-2 min-w-0 space-y-0.5 min-[400px]:col-span-1">
+            <dt class="text-xs text-text-muted">
+              {{ t(currentMatch ? 'home.lockedRule' : 'home.scoreRule') }}
+            </dt>
+            <dd id="home-rule-text" class="text-sm font-semibold break-words text-text-soft">
+              {{ ruleLabel }}
+            </dd>
+          </div>
+        </dl>
+      </section>
+    </div>
 
     <section aria-labelledby="home-recent-title" class="space-y-2">
       <h2 id="home-recent-title" class="text-xs font-semibold text-text-secondary">

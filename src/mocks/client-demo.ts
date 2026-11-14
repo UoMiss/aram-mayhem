@@ -41,7 +41,7 @@ export const DEMO_ACCOUNT = 'browser-demo-account'
 export function demoHome(): HomeSnapshot {
   return {
     accountKey: DEMO_ACCOUNT,
-    displayName: names[0]!,
+    displayName: `${names[0]}#CN1`,
     summonerLevel: 128,
     updatedAt: Date.now(),
   }
@@ -144,7 +144,11 @@ export function demoParticipants(): ParticipantSnapshot {
           ? 'not_custom'
           : 'champ_select',
     players: ready
-      ? names.slice(0, size).map((name, i) => ({ id: `demo-player-${i + 1}`, name }))
+      ? names.slice(0, size).map((name, i) => ({
+          id: `demo-player-${i + 1}`,
+          name,
+          side: i < size / 2 ? 'blue' : 'red',
+        }))
       : [],
     updatedAt: Date.now(),
   }
