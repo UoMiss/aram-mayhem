@@ -17,7 +17,7 @@ afterEach(() => disposePinia(pinia))
 describe('real home state', () => {
   it('deduplicates pending reads and clears identity on disconnect before a late result', async () => {
     const home = useHomeStore()
-    expect(home.homeProfile).toBeNull()
+    expect(home.snapshot).toBeNull()
     let resolve!: (value: unknown) => void
     api.load.mockReturnValue(
       new Promise((done) => {

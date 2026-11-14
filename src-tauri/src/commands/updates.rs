@@ -4,11 +4,10 @@ use serde::Serialize;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tauri::{State, WebviewWindow, ipc::Channel};
-use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::{Update, UpdaterExt};
 use tokio::sync::{Mutex as AsyncMutex, watch};
 
-const RELEASE_PAGE: &str = "https://github.com/UoMiss/aram-mayhem/releases";
+const GITHUB_RELEASES: &str = "https://github.com/UoMiss/aram-mayhem/releases";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -117,7 +116,7 @@ fn trusted_download(version: &str, url: &str) -> bool {
     [version.to_string(), format!("v{version}")]
         .iter()
         .any(|tag| {
-            url == format!("{RELEASE_PAGE}/download/{tag}/aram-mayhem-windows-x64-setup.exe")
+            url == format!("{GITHUB_RELEASES}/download/{tag}/aram-mayhem-windows-x64-setup.exe")
         })
 }
 
@@ -304,15 +303,6 @@ pub async fn app_install_update(
     }
 }
 
-#[tauri::command]
-pub fn app_open_release_page(window: WebviewWindow) -> Result<(), AppError> {
-    check_window(&window)?;
-    window
-        .opener()
-        .open_url(RELEASE_PAGE, None::<&str>)
-        .map_err(|_| error("update.open_failed"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,6 +311,19 @@ mod tests {
     };
     use crate::lcu::models::LcuSourceKind;
     use serde_json::json;
+
+    #[test]
+    fn update_checks_prefer_the_mirror_and_keep_signed_versions_required() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let updater = &config["plugins"]["updater"];
+        let github = format!("{GITHUB_RELEASES}/latest/download/latest.json");
+        assert_eq!(
+            updater["endpoints"],
+            json!([format!("https://gh.nsoo.de/{github}"), github])
+        );
+        assert_eq!(updater["requireSignedVersion"], true);
+    }
 
     fn observe(machine: &mut GameflowMachine, raw: &str) {
         machine.observe(

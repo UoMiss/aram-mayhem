@@ -4,18 +4,14 @@ import { useGameInfo } from '@/composables/useGameInfo'
 import { resolveGameMode } from '@/shared/lib/game-mode'
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { createMockHomeProfile } from '@/mocks/home'
 import { getHomeSnapshot } from '@/services/home.service'
 import { LcuServiceError, normalizeLcuError } from '@/services/desktop-error'
-import type { HomeProfile, HomeViewModel, HomeGameMode } from '@/types/home'
+import type { HomeViewModel, HomeGameMode } from '@/types/home'
 import type { HomeSnapshot } from '@/types/home-api'
 import { useConnectionStore } from './connection'
 
 export const useHomeStore = defineStore('home', () => {
   const connection = useConnectionStore()
-  const homeProfile = ref<HomeProfile | null>(
-    connection.isDesktopRuntime ? null : createMockHomeProfile(),
-  )
   const snapshot = shallowRef<HomeSnapshot | null>(connection.isDesktopRuntime ? null : demoHome())
   const isLoading = ref(false)
   const errorCode = ref<string | null>(null)
@@ -33,9 +29,6 @@ export const useHomeStore = defineStore('home', () => {
       ? flow
       : null
   })
-  const lobby = computed(() =>
-    liveFlow.value?.phase === 'lobby' ? (liveFlow.value.session?.lobby ?? null) : null,
-  )
   const currentMetadata = computed(() => {
     const session = liveFlow.value?.session
     if (!session || liveFlow.value?.phase === 'none') return null
@@ -105,13 +98,10 @@ export const useHomeStore = defineStore('home', () => {
       liveFlow.value?.phase === 'ready_check' ? liveFlow.value.readyCheckStatus : null,
     ),
     gameInfo,
-    homeProfile,
     homeView,
     snapshot,
     isLoading,
     errorCode,
-    lobby,
-    liveGame: computed(() => liveFlow.value?.session?.game ?? null),
     loadHome,
     clearRealHome,
   }

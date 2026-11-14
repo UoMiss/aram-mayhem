@@ -11,7 +11,6 @@ const api = vi.hoisted(() => ({
   downloadUpdate: vi.fn(),
   cancelUpdate: vi.fn(),
   installUpdate: vi.fn(),
-  openReleasePage: vi.fn(),
   setAutoAccept: vi.fn(),
 }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
@@ -45,7 +44,6 @@ beforeEach(() => {
   api.getUpdateState.mockResolvedValue(testUpdateSnapshot())
   api.setAutoAccept.mockImplementation(async (enabled: boolean) => enabled)
   api.cancelUpdate.mockResolvedValue(undefined)
-  api.openReleasePage.mockResolvedValue(undefined)
   pinia = createPinia()
   wrapper = mount(SettingsPage, {
     attachTo: document.body,
@@ -70,6 +68,7 @@ describe('native updater settings', () => {
     await checkAvailable()
     expect(wrapper.text()).toContain('发现新版本 v0.2.0')
     expect(wrapper.text()).not.toContain('退出助手')
+    expect(wrapper.text()).not.toContain('查看发布页')
     let finish!: (value: UpdateSnapshot) => void
     api.downloadUpdate.mockImplementationOnce((progress: (snapshot: UpdateSnapshot) => void) => {
       progress(
@@ -103,7 +102,6 @@ describe('native updater settings', () => {
     document.querySelector<HTMLButtonElement>('[data-action="confirm-install"]')!.click()
     await flushPromises()
     expect(api.installUpdate).toHaveBeenCalledExactlyOnceWith()
-    expect(api.openReleasePage).not.toHaveBeenCalled()
   })
   it('cancels downloads without installing and keeps the retry action', async () => {
     await checkAvailable()

@@ -78,7 +78,7 @@ describe('useTeamShuffle', () => {
     expect(shuffle.countdown.value).toBe(3)
     expect(shuffle.start()).toBe(true)
     expect(shuffle.isShuffling.value).toBe(true)
-    expect(shuffle.hasResult.value).toBe(true)
+    expect(shuffle.hasResult.value).toBe(false)
     expect(shuffle.countdown.value).toBe(3)
     expect(shuffle.groupA.value).toHaveLength(4)
     expect(shuffle.groupB.value).toHaveLength(4)
@@ -90,6 +90,7 @@ describe('useTeamShuffle', () => {
 
     vi.advanceTimersByTime(1000)
     expect(shuffle.isShuffling.value).toBe(false)
+    expect(shuffle.hasResult.value).toBe(true)
     expect(shuffle.countdown.value).toBe(0)
     expect(shuffle.randomTime.value).toBe('2026/11/01 15:04:05')
     expect(shuffle.groupA.value).toHaveLength(4)

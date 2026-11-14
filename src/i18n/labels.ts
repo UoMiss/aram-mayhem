@@ -1,5 +1,5 @@
 import type { HistoryFilter, MatchMode, MatchResult } from '@/types/history'
-import type { HomeGameMode, HomeRoomPhase, ScoreRule } from '@/types/home'
+import type { HomeRoomPhase, ScoreRule } from '@/types/home'
 import type { PlayerRelation, SettlementStat, TeamSide } from '@/types/match-detail'
 import type { SettingKey } from '@/types/settings'
 import type { GameflowPhase, LcuConnectionStatus } from '@/types/lcu'
@@ -91,8 +91,4 @@ export const GAMEFLOW_PHASE_KEYS: Record<GameflowPhase, string> = {
 export const HOME_ROOM_PHASE_KEYS: Record<HomeRoomPhase, string> = {
   ...GAMEFLOW_PHASE_KEYS,
   inRoom: 'home.inRoom',
-}
-export const HOME_GAME_MODE_KEYS: Record<HomeGameMode, string> = {
-  ...MATCH_MODE_KEYS,
-  normal: 'home.matchMode',
 }

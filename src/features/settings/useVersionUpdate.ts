@@ -27,7 +27,6 @@ export function useVersionUpdate() {
     errorCode: null,
   })
   const acting = ref(false)
-  const opening = ref(false)
   const localError = ref<string | null>(null)
   const confirmInstall = ref(false)
   let disposed = false
@@ -102,7 +101,7 @@ export function useVersionUpdate() {
     demo?.dispose()
   })
   async function run(action: 'check' | 'download' | 'install') {
-    if (disposed || busy.value || opening.value) return
+    if (disposed || busy.value) return
     if (action === 'download' && !snapshot.value.canDownload) return
     if (action === 'install' && !snapshot.value.canInstall) return
     acting.value = true
@@ -133,30 +132,16 @@ export function useVersionUpdate() {
       if (!disposed) feedback.notify(t('settings.cancelUpdateFailed'), 'error')
     }
   }
-  async function openRelease() {
-    if (disposed || busy.value || opening.value) return
-    opening.value = true
-    try {
-      const tauriSettingsAdapter = await adapter()
-      if (!disposed) await tauriSettingsAdapter.openReleasePage()
-    } catch {
-      if (!disposed) feedback.notify(t('settings.releaseOpenFailed'), 'error')
-    } finally {
-      if (!disposed) opening.value = false
-    }
-  }
   return {
     snapshot,
     checking,
     downloading,
     busy,
-    opening,
     failed,
     progress,
     message,
     confirmInstall,
     run,
     cancel,
-    openRelease,
   }
 }

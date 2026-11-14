@@ -40,6 +40,24 @@ afterEach(() => {
   vi.useRealTimers()
 })
 describe('custom lobby team participants', () => {
+  it('withholds the result when two players leave before the reveal', async () => {
+    const page = render()
+    await flushPromises()
+    await page.get('#randomBtn').trigger('click')
+    await flushPromises()
+    expect(api.load).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1000)
+    api.load.mockResolvedValue({ source: 'real', snapshot: testParticipants(8) })
+
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(page.find('#timestampBar').exists()).toBe(false)
+    expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
+    expect(api.load).toHaveBeenCalledTimes(3)
+    expect(page.get('#playerCount').text()).toBe('8 人')
+    expect(page.text()).toContain('房间或玩家名单已变化')
+  })
+
   it('loads both teams, checks freshness before drawing, and keeps all ten players', async () => {
     const page = render(false)
     await flushPromises()
@@ -53,6 +71,7 @@ describe('custom lobby team participants', () => {
     await flushPromises()
     expect(api.load).toHaveBeenCalledTimes(2)
     await vi.advanceTimersByTimeAsync(3000)
+    expect(api.load).toHaveBeenCalledTimes(3)
     const a = page.get('#teamA').findAll('[title]')
     const b = page.get('#teamB').findAll('[title]')
     expect(a).toHaveLength(5)
@@ -60,7 +79,7 @@ describe('custom lobby team participants', () => {
     expect(new Set([...a, ...b].map((player) => player.text())).size).toBe(10)
     expect(page.find('#timestampBar').exists()).toBe(true)
     api.load.mockResolvedValue({ source: 'real', snapshot: testParticipants(8) })
-    await vi.advanceTimersByTimeAsync(PARTICIPANTS_REFRESH_MS - 3000)
+    await vi.advanceTimersByTimeAsync(PARTICIPANTS_REFRESH_MS)
     await flushPromises()
     expect(page.text()).toContain('房间或玩家名单已变化')
     expect(page.find('#timestampBar').exists()).toBe(false)
@@ -199,6 +218,101 @@ describe('custom lobby team participants', () => {
 })
 
 describe('strict draw and result lifecycle', () => {
+  it('keeps the result and copy disabled until the fresh roster is confirmed', async () => {
+    const page = render()
+    await flushPromises()
+    await page.get('#randomBtn').trigger('click')
+    await flushPromises()
+    let resolve!: (value: unknown) => void
+    api.load.mockReturnValueOnce(new Promise((done) => (resolve = done)))
+
+    await vi.advanceTimersByTimeAsync(3000)
+
+    expect(api.load).toHaveBeenCalledTimes(3)
+    expect(page.find('#team-result-meta').exists()).toBe(false)
+    expect(page.find('#timestampBar').exists()).toBe(false)
+    expect(page.get('#randomizedView').text()).not.toMatch(/蓝色方|红色方/)
+    expect(page.get('#randomBtn').attributes('disabled')).toBeDefined()
+    expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
+
+    const snapshot = testParticipants()
+    snapshot.players[0]!.name = '已补全的玩家名'
+    resolve({ source: 'real', snapshot })
+    await flushPromises()
+    expect(page.get('#randomizedView').text()).toContain('已补全的玩家名')
+    expect(page.get('#timestampBar').isVisible()).toBe(true)
+    expect(page.get('#copyTeamBtn').attributes('disabled')).toBeUndefined()
+  })
+
+  it.each(['replacement', 'partial', 'timeout'] as const)(
+    'cancels the result when the reveal check returns %s',
+    async (change) => {
+      const page = render()
+      await flushPromises()
+      await page.get('#randomBtn').trigger('click')
+      await flushPromises()
+      const snapshot = testParticipants()
+      if (change === 'replacement') snapshot.players[0]!.id = 'new-player'
+      if (change === 'partial') {
+        snapshot.completeness = 'partial'
+        snapshot.issue = 'unresolved_slots'
+        snapshot.unresolvedCount = 1
+      }
+      if (change === 'timeout')
+        api.load.mockRejectedValueOnce(new LcuServiceError('lcu.timeout', 'Roster read timed out'))
+      else api.load.mockResolvedValueOnce({ source: 'real', snapshot })
+
+      await vi.advanceTimersByTimeAsync(3000)
+
+      expect(page.find('#timestampBar').exists()).toBe(false)
+      expect(page.get('#teamA').findAll('[title]')).toHaveLength(0)
+      expect(page.get('#copyTeamBtn').attributes('disabled')).toBeDefined()
+      if (change === 'timeout') expect(page.get('[role="alert"]').text()).toContain('读取失败')
+      else expect(page.text()).toContain('房间或玩家名单已变化')
+    },
+  )
+
+  it.each(['reopen', 'switch account'] as const)(
+    'ignores a pending reveal from before %s',
+    async (boundary) => {
+      const page = render()
+      await flushPromises()
+      await page.get('#randomBtn').trigger('click')
+      await flushPromises()
+      let resolve!: (value: unknown) => void
+      api.load.mockReturnValueOnce(new Promise((done) => (resolve = done)))
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(api.load).toHaveBeenCalledTimes(3)
+
+      if (boundary === 'reopen') {
+        await page.get('[aria-label="关闭随机分组"]').trigger('click')
+        expect(page.emitted('close')).toHaveLength(1)
+        await page.setProps({ open: false })
+        await page.setProps({ open: true })
+      } else {
+        const connection = useConnectionStore(pinia)
+        const flow = connection.gameflowSnapshot!
+        connection.setGameflowSnapshot({ ...flow, code: 'account_changed', revision: 2 })
+        api.load.mockResolvedValue({
+          source: 'real',
+          snapshot: testParticipants(10, { accountKey: 'account-2' }),
+        })
+        connection.setGameflowSnapshot({ ...flow, revision: 3 })
+      }
+
+      await flushPromises()
+      await page.get('#randomBtn').trigger('click')
+      await flushPromises()
+      resolve({ source: 'real', snapshot: testParticipants() })
+      await flushPromises()
+      expect(page.find('#timestampBar').exists()).toBe(false)
+      expect(page.get('#randomBtn').attributes('aria-busy')).toBe('true')
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(page.get('#timestampBar').isVisible()).toBe(true)
+      expect(page.get('#copyTeamBtn').attributes('disabled')).toBeUndefined()
+    },
+  )
+
   it.each([false, true])(
     'reveals only after three seconds with reduced motion = %s',
     async (reducedMotion) => {

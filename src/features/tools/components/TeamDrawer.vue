@@ -59,9 +59,10 @@ const {
   start,
   dispose,
   reset,
-} = useTeamShuffle(() => players.value)
+} = useTeamShuffle(() => players.value, { beforeReveal: confirmRevealRoster })
 
 const resultFingerprint = ref('')
+const isAnimating = computed(() => isShuffling.value && countdown.value > 0)
 const currentNames = computed(() => new Map(players.value.map((p) => [p.id, p.name])))
 const groupA = computed(() =>
   displayedA.value.map((p) => ({ ...p, name: currentNames.value.get(p.id) ?? p.name })),
@@ -76,13 +77,10 @@ const eligible = computed(
     roster.complete.value &&
     !roster.errorCode.value,
 )
-const resultValid = computed(
-  () =>
-    props.open &&
-    hasResult.value &&
-    eligible.value &&
-    resultFingerprint.value === roster.fingerprint.value,
+const matchesDrawRoster = computed(
+  () => props.open && eligible.value && resultFingerprint.value === roster.fingerprint.value,
 )
+const resultValid = computed(() => hasResult.value && matchesDrawRoster.value)
 
 const teamCaptureRef = ref<HTMLElement | null>(null)
 const isCopying = ref(false)
@@ -126,7 +124,7 @@ const rosterMessage = computed(() => {
 watch(
   roster.fingerprint,
   () => {
-    if (hasResult.value) rosterChanged.value = true
+    if (hasResult.value || isShuffling.value) rosterChanged.value = true
     reset()
     copyGeneration++
     isCopying.value = false
@@ -174,7 +172,7 @@ const animatedTeamClasses = computed(() =>
 )
 
 function requestClose() {
-  if (isShuffling.value) return
+  if (isAnimating.value) return
   emit('close')
 }
 
@@ -194,6 +192,13 @@ async function startRandomize() {
   rosterChanged.value = false
   resultFingerprint.value = roster.fingerprint.value
   if (!start()) feedback.notify(t('team.drawFailed'), 'error')
+}
+
+async function confirmRevealRoster() {
+  if (!matchesDrawRoster.value) return false
+  const expected = resultFingerprint.value
+  const loaded = await roster.refreshFresh()
+  return loaded && !disposed && matchesDrawRoster.value && expected === resultFingerprint.value
 }
 
 async function copyTeamImage() {
@@ -284,7 +289,7 @@ onUnmounted(() => {
         <button
           type="button"
           :aria-label="t('a11y.closeTeamDrawer')"
-          :disabled="isShuffling"
+          :disabled="isAnimating"
           class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface-raised/60 text-text-muted transition-colors hover:text-on-solid"
           @click="requestClose"
         >
@@ -345,9 +350,13 @@ onUnmounted(() => {
           <div
             id="teamContainer"
             class="flex min-h-[220px] items-center justify-center rounded-2xl border border-on-solid/5 bg-surface-sunken/60 p-4 transition-all duration-300"
-            :class="{ 'shuffling-active': isShuffling }"
+            :class="{ 'shuffling-active': isAnimating }"
           >
-            <div v-show="!hasResult" id="unrandomizedView" class="grid w-full grid-cols-2 gap-2.5">
+            <div
+              v-show="!isShuffling && !hasResult"
+              id="unrandomizedView"
+              class="grid w-full grid-cols-2 gap-2.5"
+            >
               <template v-for="column in currentColumns" :key="column.side ?? 'unknown'">
                 <div
                   v-if="column.side || column.players.length"
@@ -368,12 +377,12 @@ onUnmounted(() => {
             </div>
 
             <div
-              v-show="hasResult"
+              v-show="isShuffling || hasResult"
               id="randomizedView"
               class="relative z-floating grid w-full grid-cols-2 gap-4 divide-x divide-on-solid/5"
             >
               <div class="space-y-3 pr-2">
-                <div class="flex items-center justify-between gap-1 text-xs">
+                <div v-if="hasResult" class="flex items-center justify-between gap-1 text-xs">
                   <span class="flex items-center gap-1.5 whitespace-nowrap font-bold text-info">
                     <span class="hidden h-2 w-2 rounded-full bg-info min-[420px]:block"></span>
                     {{ t('team.groupA') }}
@@ -395,7 +404,7 @@ onUnmounted(() => {
               </div>
 
               <div class="space-y-3 pl-4">
-                <div class="flex items-center justify-between gap-1 text-xs">
+                <div v-if="hasResult" class="flex items-center justify-between gap-1 text-xs">
                   <span class="flex items-center gap-1.5 whitespace-nowrap font-bold text-danger">
                     <span class="hidden h-2 w-2 rounded-full bg-danger min-[420px]:block"></span>
                     {{ t('team.groupB') }}

@@ -81,9 +81,6 @@ export function createDemoUpdater(phase: () => GameflowPhase | null | undefined)
       if (token !== generation) return getUpdateState()
       return change({ phase: 'idle', notes: i18n.global.t('demo.installNotice') })
     },
-    async openReleasePage() {
-      window.open('https://github.com/UoMiss/aram-mayhem/releases', '_blank', 'noopener,noreferrer')
-    },
     dispose() {
       generation++
       for (const [timer, resolve] of timers) {

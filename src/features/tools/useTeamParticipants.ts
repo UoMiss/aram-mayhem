@@ -130,7 +130,9 @@ export function useTeamParticipants(isOpen: () => boolean) {
     return pending
   }
   async function refreshFresh(): Promise<boolean> {
+    const request = epoch
     if (pending) await pending
+    if (request !== epoch) return false
     return refresh()
   }
   onMounted(() => {

@@ -11,6 +11,7 @@ export interface UseTeamShuffleOptions {
   now?: () => Date
   animationMs?: number
   countdownStepMs?: number
+  beforeReveal?: () => Promise<boolean>
 }
 
 export interface TeamShuffleController {
@@ -27,13 +28,13 @@ export interface TeamShuffleController {
 
 /**
  * 随机分组的 Vue 动画控制。纯洗牌算法在 teamRandomizer.ts 中独立测试。
- * 最终分组只计算一次；组件关闭时调用 reset()，动画仅控制展示。
+ * 最终分组只计算一次，名单复核通过后才揭晓；组件关闭时调用 reset()。
  */
 export function useTeamShuffle(
   players: MaybeRefOrGetter<readonly TeamPlayer[]>,
   options: UseTeamShuffleOptions = {},
 ): TeamShuffleController {
-  const random = options.random
+  const { random, beforeReveal } = options
   const now = options.now ?? (() => new Date())
   const animationMs = options.animationMs ?? SHUFFLE_DURATION_MS
   const countdownStepMs = options.countdownStepMs ?? COUNTDOWN_STEP_MS
@@ -74,15 +75,25 @@ export function useTeamShuffle(
     previewOffset = (previewOffset + 1) % drawPlayers.length
   }
 
-  function finish() {
+  async function finish() {
     clearTimers()
-    if (!finalSplit) return
-    groupA.value = finalSplit.groupA
-    groupB.value = finalSplit.groupB
-    finalSplit = null
-    isShuffling.value = false
+    const split = finalSplit
+    if (!split) return
     countdown.value = 0
+    if (beforeReveal) {
+      const confirmed = await beforeReveal().catch(() => false)
+      if (finalSplit !== split) return
+      if (!confirmed) {
+        reset()
+        return
+      }
+    }
+    groupA.value = split.groupA
+    groupB.value = split.groupB
+    finalSplit = null
     randomTime.value = formatBeijingTime(now())
+    hasResult.value = true
+    isShuffling.value = false
   }
 
   /** 返回 false 表示当前正在洗牌，重复点击被忽略。 */
@@ -97,7 +108,7 @@ export function useTeamShuffle(
       return false
     }
     clearTimers()
-    hasResult.value = true
+    hasResult.value = false
     isShuffling.value = true
     countdown.value = 3
     randomTime.value = ''
@@ -112,7 +123,9 @@ export function useTeamShuffle(
       countdown.value -= 1
     }, countdownStepMs)
 
-    finishTimer = setTimeout(finish, animationMs)
+    finishTimer = setTimeout(() => {
+      void finish()
+    }, animationMs)
 
     return true
   }

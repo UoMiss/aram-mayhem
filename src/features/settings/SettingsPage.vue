@@ -32,14 +32,12 @@ const {
   checking,
   downloading,
   busy: updateBusy,
-  opening,
   failed,
   progress,
   message,
   confirmInstall,
   run,
   cancel,
-  openRelease,
 } = useVersionUpdate()
 let disposed = false
 onUnmounted(() => {
@@ -110,7 +108,7 @@ async function changeSetting(key: SettingKey, value: boolean) {
       <button
         type="button"
         class="w-full cursor-pointer rounded-xl border border-brand-bright/30 bg-brand-surface/30 py-2.5 text-xs text-brand-light transition-colors hover:bg-brand-deep/40"
-        :disabled="updateBusy || opening"
+        :disabled="updateBusy"
         :aria-busy="checking"
         data-action="check-update"
         @click="run('check')"
@@ -155,7 +153,7 @@ async function changeSetting(key: SettingKey, value: boolean) {
           type="button"
           data-action="download-update"
           class="w-full cursor-pointer rounded-xl bg-brand-strong py-2.5 text-on-solid transition-colors hover:bg-brand-deep disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="updateBusy || opening"
+          :disabled="updateBusy"
           @click="run('download')"
         >
           <i class="fa-solid fa-download mr-1.5" aria-hidden="true"></i
@@ -166,7 +164,7 @@ async function changeSetting(key: SettingKey, value: boolean) {
           type="button"
           data-action="install-update"
           class="w-full cursor-pointer rounded-xl bg-brand-strong py-2.5 text-on-solid transition-colors hover:bg-brand-deep disabled:opacity-50"
-          :disabled="updateBusy || opening"
+          :disabled="updateBusy"
           @click="confirmInstall = true"
         >
           {{ t('settings.installUpdate') }}
@@ -202,15 +200,6 @@ async function changeSetting(key: SettingKey, value: boolean) {
           </DialogContent>
         </DialogPortal>
       </DialogRoot>
-      <button
-        type="button"
-        data-action="release-page"
-        :disabled="updateBusy || opening"
-        class="text-xs text-brand-light underline disabled:opacity-50"
-        @click="openRelease"
-      >
-        {{ t('settings.releasePage') }}
-      </button>
     </div>
   </section>
 </template>

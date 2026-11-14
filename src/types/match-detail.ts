@@ -31,24 +31,3 @@ export interface SettlementPlayer {
     group: SizeOutcome | null
   }
 }
-
-export interface RedPacketEntry {
-  name: string
-  rank: number | null
-}
-
-export interface RedPacketNotice {
-  entries: readonly RedPacketEntry[]
-}
-
-/**
- * 浏览器共享静态演示示例，不与真实对局绑定；桌面使用 SettlementSnapshot。
- */
-export interface MatchDetailFixture {
-  id: string
-  isSharedFixture: boolean
-  queueLabel: string
-  duration: string
-  redPacket: RedPacketNotice
-  players: readonly SettlementPlayer[]
-}

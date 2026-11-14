@@ -44,7 +44,6 @@ export const useAppStore = defineStore('app', () => {
     setLcuError: connection.setLcuError,
     clearLcuError: connection.clearLcuError,
     setGameflowSnapshot: connection.setGameflowSnapshot,
-    homeProfile: homeRefs.homeProfile,
     homeView: homeRefs.homeView,
     currentRule: rulesRefs.currentRule,
     setCurrentRule: rules.setCurrentRule,

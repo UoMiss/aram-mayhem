@@ -47,14 +47,6 @@ export const tauriAdapter: DesktopAdapter = {
   },
 }
 
-export async function exitDesktopApp() {
-  try {
-    await invoke('app_exit')
-  } catch {
-    throw new DesktopServiceError('desktop.ipc_failed', 'Desktop exit failed')
-  }
-}
-
 /** The only frontend module that knows the Rust LCU command/event names. */
 export const tauriLcuAdapter: LcuAdapter = {
   async getConnectionStatus() {
@@ -280,13 +272,6 @@ export const tauriSettingsAdapter = {
   async cancelUpdate() {
     try {
       await invoke('app_cancel_update')
-    } catch (error) {
-      throw updateError(error)
-    }
-  },
-  async openReleasePage() {
-    try {
-      await invoke('app_open_release_page')
     } catch (error) {
       throw updateError(error)
     }

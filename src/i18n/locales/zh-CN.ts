@@ -14,7 +14,6 @@ const zhCN = {
     generating: '生成中...',
     friend: '友',
     self: '我',
-    backHome: '返回首页',
   },
   nav: {
     home: '首页',
@@ -60,7 +59,6 @@ const zhCN = {
   },
   home: {
     inRoom: '房间中',
-    matchMode: '匹配模式',
     currentMatch: '当前对局',
     noMatch: '暂无对局',
     scoreRule: '算分规则',
@@ -350,8 +348,6 @@ const zhCN = {
       '即将安装 v{version}。助手将退出，安装完成后重新启动。是否现在安装？',
     installLater: '稍后安装',
     confirmInstall: '退出并安装',
-    releasePage: '查看发布页',
-    releaseOpenFailed: '无法打开发布页，请稍后重试。',
   },
   gameflow: {
     readyCheck: {
@@ -387,10 +383,6 @@ const zhCN = {
     teamCopied: '分组图片已复制到剪贴板',
     teamDownloaded: '分组图片已生成并自动下载',
     teamFailed: '分组图片生成失败，请重试',
-  },
-  placeholder: {
-    migrationPending: '后续阶段迁移',
-    description: '原始页面、Mock 数据与交互未删除，完整保存在 references/deepseek.original.html。',
   },
 } as const
 

@@ -1,11 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { browserAdapter } from '@/adapters/browser.adapter'
-import type { AppHealth, AppRuntime, DesktopAdapter } from '@/types/desktop'
-
-/** Select the adapter from the actual runtime, not a build-time flag. */
-export function getRuntimeEnvironment(): AppRuntime {
-  return isTauri() ? 'tauri' : 'browser'
-}
+import type { AppHealth } from '@/types/desktop'
 
 /**
  * Browser -> Mock adapter; Tauri -> lazy IPC adapter.
@@ -19,11 +14,3 @@ export async function getAppHealth(): Promise<AppHealth> {
   const { tauriAdapter } = await import('@/adapters/tauri.adapter')
   return tauriAdapter.getHealth()
 }
-
-export async function exitApp() {
-  if (!isTauri()) return
-  const { exitDesktopApp } = await import('@/adapters/tauri.adapter')
-  await exitDesktopApp()
-}
-
-export type { DesktopAdapter }
