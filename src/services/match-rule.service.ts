@@ -1,15 +1,18 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { demoLockRule, demoLockedRule } from '@/mocks/client-demo'
+import { previewRuntime } from '@/adapters/preview-runtime'
+import { requireTauri } from './runtime-source'
 import type { OpeningChoice } from '@/types/match-rule-api'
 
 export async function lockMatchRule(choice: OpeningChoice) {
-  if (!isTauri()) return demoLockRule(choice)
+  if (previewRuntime && !isTauri()) return previewRuntime.lockRule(choice)
+  requireTauri()
   const { tauriMatchRuleAdapter } = await import('@/adapters/tauri.adapter')
   return tauriMatchRuleAdapter.lock(choice)
 }
 
 export async function getLockedMatchRule(gameId: string) {
-  if (!isTauri()) return demoLockedRule(gameId)
+  if (previewRuntime && !isTauri()) return previewRuntime.lockedRule(gameId)
+  requireTauri()
   const { tauriMatchRuleAdapter } = await import('@/adapters/tauri.adapter')
   return tauriMatchRuleAdapter.get(gameId)
 }

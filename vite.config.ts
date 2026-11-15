@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { configDefaults, defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -11,6 +11,14 @@ export default defineConfig({
     },
   },
   server: { host: '127.0.0.1', port: 1420, strictPort: true },
+  test: {
+    exclude: [
+      ...configDefaults.exclude,
+      '**/.local-archive/**',
+      '**/.local-demo/**',
+      '**/.pnpm-store/**',
+    ],
+  },
   build: {
     rollupOptions: {
       output: {

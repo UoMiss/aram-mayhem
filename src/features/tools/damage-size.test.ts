@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SCORE_RULE_OPTIONS } from '@/mocks/tools'
+import { SCORE_RULE_OPTIONS } from '@/shared/constants/rules'
 import { toggleScoreRule } from './rules'
 describe('damage size rule entry', () => {
   it('adds a fourth mutually exclusive rule', () => {

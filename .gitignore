@@ -5,7 +5,7 @@ coverage/
 .DS_Store
 .idea/
 .vscode/*
-!.vscode/extensions.json
+/components.json
 .env
 .env.*
 !.env.example
@@ -37,6 +37,7 @@ src-tauri/.env.*
 
 # 本地资料归档
 /.local-archive/
+/.local-demo/
 
 # Updater signing key and its local backup (never commit)
 /.updater-signing/

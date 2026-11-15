@@ -12,6 +12,7 @@ export default tseslint.config(
       'node_modules/**',
       'references/**',
       '.local-archive/**',
+      '.local-demo/**',
       '.cargo/**',
       '.rustup/**',
       'src-tauri/target/**',

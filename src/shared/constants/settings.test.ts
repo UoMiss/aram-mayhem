@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultSettings, SETTINGS_OPTIONS } from './settings'
 
-describe('settings mock', () => {
+describe('settings defaults', () => {
   it('defaults automatic acceptance off', () => {
     expect(createDefaultSettings()).toEqual({
       autoAccept: false,

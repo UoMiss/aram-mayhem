@@ -1,5 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { browserGameflowAdapter, browserLcuAdapter } from '@/adapters/browser.adapter'
+import { previewRuntime } from '@/adapters/preview-runtime'
+import { requireTauri } from './runtime-source'
 import type {
   GameflowAdapter,
   GameflowEventListener,
@@ -12,9 +13,8 @@ import type {
 } from '@/types/lcu'
 
 async function getLcuAdapter(): Promise<LcuAdapter> {
-  if (!isTauri()) {
-    return browserLcuAdapter
-  }
+  if (previewRuntime && !isTauri()) return previewRuntime.lcu
+  requireTauri()
   const { tauriLcuAdapter } = await import('@/adapters/tauri.adapter')
   return tauriLcuAdapter
 }
@@ -60,9 +60,8 @@ export async function subscribeGameflow(
 }
 
 async function getGameflowAdapter(): Promise<GameflowAdapter> {
-  if (!isTauri()) {
-    return browserGameflowAdapter
-  }
+  if (previewRuntime && !isTauri()) return previewRuntime.gameflow
+  requireTauri()
   const { tauriGameflowAdapter } = await import('@/adapters/tauri.adapter')
   return tauriGameflowAdapter
 }

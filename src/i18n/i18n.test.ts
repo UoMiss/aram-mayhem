@@ -38,7 +38,7 @@ describe('zh-CN i18n resource', () => {
     const t = i18n.global.t
 
     expect(t('connection.details')).toBe('连接详情')
-    expect(t('history.recentHint', { count: 20 })).toBe('仅显示最近 20 局 · 点击查看结算')
+    expect(t('history.realHint', { count: 20 })).toBe('最近 20 局 · 点击对局查看结算')
     expect(t('matchDetail.redPacketPeople', { count: 5 })).toBe(' · 5 人')
     expect(t('team.participantCount', { count: 8 })).toBe('8 人')
     expect(t('team.groupCount', { count: 4 })).toBe('4 人')

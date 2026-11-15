@@ -6,6 +6,8 @@ import { createAppI18n } from '@/i18n'
 import { useConnectionStore } from '@/stores/connection'
 import type { LcuStatusDto } from '@/types/lcu'
 
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
+
 const bridge = vi.hoisted(() => ({
   getGameflowSnapshot: vi.fn(),
   getLcuConnectionStatus: vi.fn(),

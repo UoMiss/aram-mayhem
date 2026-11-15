@@ -23,3 +23,4 @@ src-tauri/Cargo.lock
 
 # Local archive
 /.local-archive/
+/.local-demo/

@@ -93,7 +93,7 @@ function openRecent(matchId: string) {
           <h2 id="home-current-match" class="text-xs font-semibold tracking-wide text-brand-light">
             {{ t('home.currentMatch') }}
           </h2>
-          <span v-if="!connection.isDesktopRuntime" class="text-[11px] text-text-muted">
+          <span v-if="connection.isPreview" class="text-[11px] text-text-muted">
             {{ t('connection.demoData') }}
           </span>
         </div>

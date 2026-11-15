@@ -10,13 +10,18 @@ const connection = useConnectionStore()
 const { t } = useI18n({ useScope: 'global' })
 
 const statusText = computed(() => {
-  if (!connection.isDesktopRuntime)
+  if (connection.isPreview)
     return t(connection.isConnecting ? 'connection.connecting' : 'connection.waiting')
 
+  if (!connection.isDesktopRuntime) return t('connection.unsupported')
   return t(CONNECTION_STATUS_KEYS[connection.lcuStatus?.status ?? 'discovering'])
 })
 
-const unsupported = computed(() => connection.lcuStatus?.status === 'unsupported_platform')
+const unsupported = computed(
+  () =>
+    (!connection.isDesktopRuntime && !connection.isPreview) ||
+    connection.lcuStatus?.status === 'unsupported_platform',
+)
 const errorText = computed(() => {
   const status = connection.lcuStatus
   const code = connection.lcuBridgeError ?? (status?.status === 'error' ? status.code : null)
@@ -52,12 +57,12 @@ const errorText = computed(() => {
             <span class="h-2.5 w-2.5 rounded-full bg-success-bright/80"></span>
           </div>
           <span class="text-text-subtle select-none">
-            {{ connection.isDesktopRuntime ? 'lcu-connector.sh' : t('connection.demoBadge') }}
+            {{ connection.isPreview ? t('connection.demoBadge') : 'lcu-connector.sh' }}
           </span>
         </header>
 
         <div class="space-y-1 text-text-secondary">
-          <template v-if="connection.isDesktopRuntime">
+          <template v-if="!connection.isPreview">
             <p><span class="text-brand">[SYS]</span> Real LCU status listener...</p>
             <p>
               <span class="text-success">[SOURCE]</span>
@@ -66,7 +71,7 @@ const errorText = computed(() => {
               }}</span>
             </p>
           </template>
-          <p v-else><span class="text-brand">[MOCK]</span> Browser demo connection</p>
+          <p v-else>{{ t('connection.previewStatus') }}</p>
           <p role="status">
             <span class="text-link" aria-hidden="true">[STATUS]</span>
             <span class="text-warning">{{ statusText }}</span>
@@ -80,7 +85,7 @@ const errorText = computed(() => {
             <code class="break-all text-danger-light">{{ connection.lcuBridgeError }}</code>
           </p>
           <p v-if="errorText" role="alert" class="text-danger-light">{{ errorText }}</p>
-          <p v-if="connection.isDesktopRuntime" class="text-[10px] text-text-subtle">
+          <p v-if="!connection.isPreview" class="text-[10px] text-text-subtle">
             <span aria-hidden="true">$</span>
             {{ t(unsupported ? 'connection.unsupportedIntro' : 'connection.autoDetect') }}
             <span
@@ -93,7 +98,7 @@ const errorText = computed(() => {
       </section>
 
       <button
-        v-if="!connection.isDesktopRuntime"
+        v-if="connection.isPreview"
         type="button"
         class="mt-4 cursor-pointer rounded-xl border border-brand-bright/40 bg-brand-base/40 px-4 py-2 text-sm font-medium text-brand-pale hover:bg-brand-surface/50 disabled:cursor-not-allowed disabled:opacity-70"
         :disabled="connection.isConnecting"

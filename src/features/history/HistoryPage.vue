@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MatchHistoryCard from './components/MatchHistoryCard.vue'
 import { HISTORY_FILTER_KEYS } from '@/i18n/labels'
-import { HISTORY_FILTERS } from '@/mocks/history'
+import { HISTORY_FILTERS } from '@/shared/constants/history'
 import { useHistoryStore, HISTORY_MATCH_LIMIT } from '@/stores/history'
 import { useConnectionStore } from '@/stores/connection'
 import { useUiStore } from '@/stores/ui'
@@ -107,12 +107,12 @@ onUnmounted(() => history.clearRealHistory())
     >
       <i class="fa-solid fa-circle-info text-xs text-brand"></i>
       <span>{{
-        t(connection.isDesktopRuntime ? 'history.realHint' : 'history.recentHint', {
+        t(connection.isPreview ? 'history.recentHint' : 'history.realHint', {
           count: HISTORY_MATCH_LIMIT,
         })
       }}</span>
     </div>
-    <p v-if="!connection.isDesktopRuntime" class="text-center text-[10px] text-text-subtle">
+    <p v-if="connection.isPreview" class="text-center text-[10px] text-text-subtle">
       {{ t('history.demoHint') }}
     </p>
     <p v-if="history.isLoading" role="status" class="py-12 text-center text-sm text-text-muted">

@@ -103,15 +103,13 @@ describe('connection page', () => {
     expect(page.find('button').exists()).toBe(false)
   })
 
-  it('labels browser mode as a demo and never invokes desktop IPC', async () => {
+  it('requires the desktop app when opened in a browser', () => {
     runtime.desktop = false
     const page = render()
-    expect(page.get('button').text()).toBe('进入浏览器演示')
-    await page.get('button').trigger('click')
-    expect(page.get('button').attributes('disabled')).toBeDefined()
-    vi.advanceTimersByTime(1500)
-    await flushPromises()
-    expect(useConnectionStore(pinia).isConnected).toBe(true)
+    expect(page.find('button').exists()).toBe(false)
+    expect(page.get('[role="status"]').text()).toContain('当前平台不支持客户端连接')
+    expect(page.text()).toContain('请在 Windows 电脑上运行助手')
+    expect(useConnectionStore(pinia).isConnected).toBe(false)
     expect(runtime.start).not.toHaveBeenCalled()
   })
 })

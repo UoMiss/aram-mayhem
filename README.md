@@ -7,7 +7,7 @@ Windows 桌面助手，基于 Tauri 2、Vue 3 和 TypeScript。连接本机英�
 - Windows 安装包在 [GitHub Releases](https://github.com/UoMiss/aram-mayhem/releases) 提供，安装包旁附 SHA-256 校验文件。
 - 安装 Node.js 22、pnpm 10 和 Rust stable。Windows 原生构建还需要 MSVC 和 WebView2。
 - `pnpm install --frozen-lockfile` 安装前端依赖。
-- `pnpm dev` 启动浏览器演示。`pnpm tauri dev` 启动桌面应用。
+- `pnpm tauri dev` 启动桌面应用。
 - `pnpm check` 运行设计基线校验、格式检查、类型检查、Lint、前端测试及生产构建。
 - `cargo test --locked --manifest-path src-tauri/Cargo.toml` 运行 Rust 测试。
 
@@ -20,14 +20,6 @@ Windows Release 工作流从版本标签构建 NSIS 安装包，并在 Windows �
 RC 通过 GitHub Pre-release 手动下载安装，不设为 Latest，不进入正式客户端自动更新通道。发布脚本仅在显式 `--prerelease` 时接受 `X.Y.Z-rc.N`，仍验证安装包签名及绑定版本。工作流会将 RC 草稿标记为预发布。
 
 测试版与正式版使用同一应用标识和本地数据目录，不能视作隔离的第二套安装。安装前完全退出助手并备份 `%LOCALAPPDATA%\\com.arammayhem.desktop`；不删除锁定规则、幸运数字和大小开奖记录。回退旧版本的数据兼容性需另行验证。
-
-## 浏览器演示
-
-运行 `pnpm dev`，点击“进入浏览器演示”。演示与桌面端共用首页、战绩、工具、结算和设置页面，以及名单刷新、3 秒洗牌、规则锁定、结算重试和截图交付流程。浏览器数据标记为 `mock`，不会调用原生 IPC，也不会写入桌面端的规则与幸运数字历史。
-
-右上角“演示”面板可以切换 3v3、4v4、5v5 自定义房间或匹配模式，推进匹配、确认、选人、开局、游戏中和赛后阶段，并模拟断开与重新连接。“自动接受对局”开关会改变模拟确认状态。开局锁定当前规则；赛后模拟两次数据未就绪，随后恢复结算。幸运数字在数据就绪后生成，同局保持不变；完成的模拟对局会进入近期对局和最多 20 条的战绩列表。模拟记录仅保存在当前页面内存中，刷新浏览器会重置。
-
-版本更新可以演示检查、下载进度、取消、安装确认和完成提示，但不下载或执行安装包。系统托盘、窗口控制、真实 LCU、Windows WebView2 剪贴板权限和原生安装更新仍需 Windows 实机验证，浏览器演示不代表这些能力已通过验收。
 
 ## 设置与版本更新
 

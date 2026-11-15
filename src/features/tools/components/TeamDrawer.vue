@@ -345,7 +345,7 @@ onUnmounted(() => {
               {{ gameInfo.gameTypeLabel }} · {{ groupA.length }}v{{ groupB.length }} ·
               {{ gameInfo.mapLabel }}
             </p>
-            <p v-if="!roster.isDesktop.value">{{ t('team.demo') }}</p>
+            <p v-if="roster.isPreview.value">{{ t('team.demo') }}</p>
           </div>
           <div
             id="teamContainer"

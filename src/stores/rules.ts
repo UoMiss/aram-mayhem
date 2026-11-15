@@ -2,7 +2,7 @@ import { isTauri } from '@tauri-apps/api/core'
 import { readLocalData, writeLocalData } from '@/shared/lib/local-data'
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { INITIAL_SCORE_RULE } from '@/mocks/home'
+import { INITIAL_SCORE_RULE } from '@/shared/constants/home'
 import type { ScoreRuleSelection } from '@/types/home'
 
 export const useRulesStore = defineStore('rules', () => {

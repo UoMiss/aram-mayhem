@@ -28,10 +28,8 @@ describe('app service runtime selection', () => {
     mocks.getHealth.mockReset()
   })
 
-  it('uses the browser adapter in a normal browser', async () => {
-    const health = await getAppHealth()
-
-    expect(health.runtime).toBe('browser')
+  it('rejects requests outside the desktop runtime', async () => {
+    await expect(getAppHealth()).rejects.toMatchObject({ code: 'lcu.unsupported_platform' })
     expect(mocks.getHealth).not.toHaveBeenCalled()
   })
 

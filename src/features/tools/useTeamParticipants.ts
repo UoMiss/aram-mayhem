@@ -14,7 +14,7 @@ export function useTeamParticipants(isOpen: () => boolean) {
   const connection = useConnectionStore()
   const home = useHomeStore()
   const { t } = useI18n({ useScope: 'global' })
-  const isDesktop = computed(() => connection.isDesktopRuntime)
+  const isPreview = computed(() => connection.isPreview)
   const active = computed(() => isOpen() && connection.canReadAccountData)
   const snapshot = shallowRef<ParticipantSnapshot | null>(null)
   const players = shallowRef<readonly (TeamPlayer & Pick<LobbyParticipant, 'side'>)[]>([])
@@ -154,7 +154,7 @@ export function useTeamParticipants(isOpen: () => boolean) {
     isLoading,
     errorCode,
     fingerprint,
-    isDesktop,
+    isPreview,
     refresh,
     refreshFresh,
   }

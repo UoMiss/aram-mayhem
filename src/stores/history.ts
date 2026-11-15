@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, ref, shallowRef } from 'vue'
 import { isTauri } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
-import { demoHistory } from '@/mocks/client-demo'
+import { previewRuntime } from '@/adapters/preview-runtime'
 import { getMatchHistory } from '@/services/history.service'
 import { normalizeLcuError, LcuServiceError } from '@/services/desktop-error'
 import { toHistoryItem } from '@/shared/lib/history-presentation'
@@ -14,7 +14,7 @@ export const HISTORY_MATCH_LIMIT = 20
 export const useHistoryStore = defineStore('history', () => {
   const ui = useUiStore()
   const isDesktop = isTauri()
-  const initialDemo = isDesktop ? null : demoHistory()
+  const initialDemo = isDesktop ? undefined : previewRuntime?.history()
   const matchHistory = shallowRef<readonly MatchHistoryItem[]>(
     initialDemo?.matches.map((match) => toHistoryItem(match, initialDemo.accountKey)) ?? [],
   )
@@ -26,7 +26,7 @@ export const useHistoryStore = defineStore('history', () => {
   )
   const liveSettlement = shallowRef<{ gameId: string; accountKey: string } | null>(null)
   const isLoading = ref(false)
-  const hasLoaded = ref(!isDesktop)
+  const hasLoaded = ref(!!initialDemo)
   const errorCode = ref<string | null>(null)
   const accountKey = ref<string | null>(initialDemo?.accountKey ?? null)
   let generation = 0

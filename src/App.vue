@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useMatchLifecycle } from '@/composables/useMatchLifecycle'
-import BrowserDemoControls from '@/features/demo/BrowserDemoControls.vue'
+import { previewRuntime } from '@/adapters/preview-runtime'
 import AppShell from '@/components/layout/AppShell.vue'
 import AppToast from '@/components/feedback/AppToast.vue'
 import ConnectionScreen from '@/features/connection/ConnectionScreen.vue'
@@ -25,6 +25,7 @@ const connection = useConnectionStore()
 const desktop = useDesktopStore()
 const lifecycle = useMatchLifecycle()
 const settings = useSettingsStore()
+const previewControls = previewRuntime?.controls
 
 function diagnosticCode(error: unknown, fallback: string): string {
   return error instanceof LcuServiceError ? error.code : fallback
@@ -96,8 +97,9 @@ async function subscribeFlow() {
   }
 }
 
-// Silent startup probes: health, connection and gameflow. Desktop has no demo controls.
+// Silent startup probes: health, connection and gameflow.
 onMounted(() => {
+  if (!connection.isDesktopRuntime && !connection.isPreview) return
   void getAppHealth()
     .then((health) => {
       if (!disposed) desktop.setAppVersion(health.appVersion)
@@ -160,6 +162,6 @@ onUnmounted(() => {
     <AppShell v-if="connection.isConnected" />
     <ConnectionScreen v-else />
     <AppToast />
-    <BrowserDemoControls v-if="!connection.isDesktopRuntime" />
+    <component :is="previewControls" v-if="previewControls && connection.isPreview" />
   </div>
 </template>

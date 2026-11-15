@@ -455,10 +455,10 @@ async function copyScreenshot() {
             <div class="border-b border-on-solid/5 bg-surface-sunken/50 p-2">
               <SettlementLayoutToggle v-model="layout" />
               <p
-                v-if="!connection.isDesktopRuntime || !lockedRule"
+                v-if="connection.isPreview || !lockedRule"
                 class="px-2 pt-2 text-[11px] text-text-muted"
               >
-                {{ t(connection.isDesktopRuntime ? 'rules.previewOnly' : 'matchDetail.demo') }}
+                {{ t(connection.isPreview ? 'matchDetail.demo' : 'rules.previewOnly') }}
               </p>
             </div>
             <div v-if="layout === 'group'" id="layout-group" class="space-y-3 py-3">

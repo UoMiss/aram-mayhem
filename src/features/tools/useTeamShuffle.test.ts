@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { TEAM_DRAW_PLAYERS } from '@/mocks/tools'
+import { TEAM_DRAW_PLAYERS } from '../../../tests/fixtures/team-draw'
 import { useTeamShuffle } from './useTeamShuffle'
 import { splitCustomTeams } from './teamRandomizer'
 

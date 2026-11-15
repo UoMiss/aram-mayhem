@@ -1,7 +1,7 @@
-import { createDemoUpdater } from '@/mocks/updater'
+import { previewRuntime } from '@/adapters/preview-runtime'
+import { requireTauri } from '@/services/runtime-source'
 import { useConnectionStore } from '@/stores/connection'
 import { computed, onMounted, onScopeDispose, ref, shallowRef } from 'vue'
-import { isTauri } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import { DesktopServiceError } from '@/services/desktop-error'
 import { useFeedbackStore } from '@/stores/feedback'
@@ -9,9 +9,13 @@ import type { UpdateSnapshot } from '@/types/settings'
 
 export function useVersionUpdate() {
   const connection = useConnectionStore()
-  const demo = isTauri() ? null : createDemoUpdater(() => connection.gameflowSnapshot?.phase)
+  const demo = connection.isPreview
+    ? previewRuntime?.createUpdater(() => connection.gameflowSnapshot?.phase)
+    : undefined
   async function adapter() {
-    return demo ?? (await import('@/adapters/tauri.adapter')).tauriSettingsAdapter
+    if (demo) return demo
+    requireTauri()
+    return (await import('@/adapters/tauri.adapter')).tauriSettingsAdapter
   }
   const { t } = useI18n({ useScope: 'global' })
   const feedback = useFeedbackStore()

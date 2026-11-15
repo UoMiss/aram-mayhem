@@ -16,7 +16,7 @@ import { useDesktopStore } from '@/stores/desktop'
 import { useI18n } from 'vue-i18n'
 import { SETTING_LABEL_KEYS } from '@/i18n/labels'
 import SettingToggle from '@/features/settings/components/SettingToggle.vue'
-import { SETTINGS_OPTIONS } from '@/mocks/settings'
+import { SETTINGS_OPTIONS } from '@/shared/constants/settings'
 import { useSettingsStore } from '@/stores/settings'
 import { useFeedbackStore } from '@/stores/feedback'
 

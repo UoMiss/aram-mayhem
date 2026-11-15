@@ -11,8 +11,10 @@ beforeEach(() => {
   adapter.load.mockReset()
 })
 describe('custom participants service', () => {
-  it('keeps browser demo players explicit without native IPC', async () => {
-    expect((await getCustomParticipants()).source).toBe('mock')
+  it('requires the desktop runtime', async () => {
+    await expect(getCustomParticipants()).rejects.toMatchObject({
+      code: 'lcu.unsupported_platform',
+    })
     expect(adapter.load).not.toHaveBeenCalled()
   })
   it('uses native roster and never replaces failures with mock players', async () => {

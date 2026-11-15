@@ -4,7 +4,7 @@ import { useUiStore } from '@/stores/ui'
 import { useI18n } from 'vue-i18n'
 import RuleOption from '@/features/tools/components/RuleOption.vue'
 import { toggleScoreRule } from '@/features/tools/rules'
-import { SCORE_RULE_OPTIONS } from '@/mocks/tools'
+import { SCORE_RULE_OPTIONS } from '@/shared/constants/rules'
 import { useRulesStore } from '@/stores/rules'
 import type { ScoreRule } from '@/types/home'
 

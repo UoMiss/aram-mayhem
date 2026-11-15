@@ -1,4 +1,4 @@
-import { configureDemo, demoFlow } from '@/mocks/client-demo'
+import { previewRuntime } from '@/adapters/preview-runtime'
 import { isRuntimeFlow } from '@/services/runtime-source'
 import { computed, onScopeDispose, ref } from 'vue'
 import { isTauri } from '@tauri-apps/api/core'
@@ -21,6 +21,7 @@ export const useConnectionStore = defineStore('connection', () => {
   const isAccountInvalidated = ref(false)
 
   const isDesktopRuntime = computed(() => isTauri())
+  const isPreview = computed(() => !!previewRuntime && !isDesktopRuntime.value)
   const isRealLcuConnected = computed(
     () =>
       isDesktopRuntime.value &&
@@ -48,23 +49,24 @@ export const useConnectionStore = defineStore('connection', () => {
   let connectTimer: ReturnType<typeof setTimeout> | null = null
   /** 演示连接：1500ms 后进入已连接状态，重复点击会被忽略。 */
   function connect() {
-    if (isDesktopRuntime.value) return
+    const preview = previewRuntime
+    if (!preview || !isPreview.value) return
     if (connectionPhase.value !== 'disconnected') return
 
     feedback.hideToast()
     connectionPhase.value = 'connecting'
     connectTimer = setTimeout(() => {
       connectTimer = null
-      configureDemo({})
+      const snapshot = preview.resetConnection()
       connectionPhase.value = 'connected'
-      setGameflowSnapshot(demoFlow())
+      setGameflowSnapshot(snapshot)
       ui.setActiveTab('home')
     }, CONNECT_DELAY_MS)
   }
 
   /** 回到未连接层；同时取消尚未完成的模拟连接。 */
   function disconnect() {
-    if (isDesktopRuntime.value) return
+    if (!isPreview.value) return
     if (connectTimer) {
       clearTimeout(connectTimer)
       connectTimer = null
@@ -111,6 +113,7 @@ export const useConnectionStore = defineStore('connection', () => {
     gameflowSnapshot,
     lcuBridgeError,
     isDesktopRuntime,
+    isPreview,
     isRealLcuConnected,
     isAccountInvalidated,
     canReadAccountData,

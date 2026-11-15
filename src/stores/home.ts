@@ -1,4 +1,4 @@
-import { demoHome } from '@/mocks/client-demo'
+import { previewRuntime } from '@/adapters/preview-runtime'
 import { isRuntimeFlow } from '@/services/runtime-source'
 import { useGameInfo } from '@/composables/useGameInfo'
 import { resolveGameMode } from '@/shared/lib/game-mode'
@@ -12,7 +12,9 @@ import { useConnectionStore } from './connection'
 
 export const useHomeStore = defineStore('home', () => {
   const connection = useConnectionStore()
-  const snapshot = shallowRef<HomeSnapshot | null>(connection.isDesktopRuntime ? null : demoHome())
+  const snapshot = shallowRef<HomeSnapshot | null>(
+    connection.isPreview ? (previewRuntime?.home() ?? null) : null,
+  )
   const isLoading = ref(false)
   const errorCode = ref<string | null>(null)
   let generation = 0

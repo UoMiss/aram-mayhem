@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { isTauri } from '@tauri-apps/api/core'
-import { createDefaultSettings } from '@/mocks/settings'
+import { createDefaultSettings } from '@/shared/constants/settings'
 import { readLocalData, writeLocalData } from '@/shared/lib/local-data'
 import type { SettingKey, SettingsFlags } from '@/types/settings'
 const key = 'aram.settings.v1'

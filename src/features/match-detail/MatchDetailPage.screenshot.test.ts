@@ -20,8 +20,8 @@ import {
 import MatchDetailPage from './MatchDetailPage.vue'
 import { testDamageSize } from '../../../tests/fixtures/damage-size-contract'
 
-const api = vi.hoisted(() => ({ desktop: true, load: vi.fn(), render: vi.fn() }))
-vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => api.desktop }))
+const api = vi.hoisted(() => ({ load: vi.fn(), render: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
 vi.mock('@/services/settlement.service', () => ({ getSettlement: api.load }))
 vi.mock('html2canvas-pro', () => ({ default: api.render }))
 
@@ -47,7 +47,6 @@ async function render() {
   return wrapper
 }
 beforeEach(() => {
-  api.desktop = true
   localStorage.clear()
   api.load.mockReset().mockResolvedValue({ source: 'real', snapshot: testSettlement() })
   api.render.mockReset().mockResolvedValue(canvas())
@@ -283,27 +282,6 @@ it('reports a genuine render failure once without delivering', async () => {
   expect(useFeedbackStore(pinia).notify).toHaveBeenCalledTimes(1)
   expect(useFeedbackStore(pinia).toastTone).toBe('error')
   expect(page.get('#copyBtn').attributes('disabled')).toBeUndefined()
-})
-
-it('keeps browser demo screenshots functional with an explicit mock account context', async () => {
-  disposePinia(pinia)
-  api.desktop = false
-  api.load.mockResolvedValue({ source: 'mock', snapshot: testSettlement() })
-  pinia = createPinia()
-  useConnectionStore(pinia).connectionPhase = 'connected'
-  useHistoryStore(pinia).openLiveSettlement(TEST_SETTLEMENT_ID, TEST_SETTLEMENT_ACCOUNT)
-  useRulesStore(pinia).setCurrentRule('tail')
-  vi.spyOn(useFeedbackStore(pinia), 'notify')
-  useUiStore(pinia).setActiveTab('match-detail')
-  const page = await render()
-  await page.get('#copyBtn').trigger('click')
-  await flushPromises()
-  expect(api.load).toHaveBeenCalledOnce()
-  expect(write).toHaveBeenCalledOnce()
-  expect(useFeedbackStore(pinia).notify).toHaveBeenCalledExactlyOnceWith(
-    '截图已复制到剪贴板',
-    'success',
-  )
 })
 
 it('does not let an old capture clear the busy state or deliver over a new capture', async () => {

@@ -11,9 +11,8 @@ beforeEach(() => {
   adapter.load.mockReset()
 })
 describe('history service', () => {
-  it('keeps browser data explicitly simulated without native IPC', async () => {
-    const result = await getMatchHistory()
-    expect(result.source).toBe('mock')
+  it('requires the desktop runtime', async () => {
+    await expect(getMatchHistory()).rejects.toMatchObject({ code: 'lcu.unsupported_platform' })
     expect(adapter.load).not.toHaveBeenCalled()
   })
   it('uses the native adapter in desktop mode and preserves failures', async () => {

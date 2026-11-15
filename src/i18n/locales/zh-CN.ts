@@ -1,15 +1,4 @@
 const zhCN = {
-  demo: {
-    notice: '浏览器模拟数据，不连接真实客户端。',
-    room: '演示房间',
-    customSize: '自定义 {n}v{n}',
-    matched: '海克斯匹配（仅我和好友排名）',
-    advance: '推进对局阶段',
-    newRoom: '返回新房间',
-    disconnect: '模拟断开连接',
-    updateNotice: '模拟更新流程：不下载、不安装、不修改本机版本。',
-    installNotice: '模拟安装完成，实际客户端版本未改变。',
-  },
   common: {
     generating: '生成中...',
     friend: '友',
@@ -32,17 +21,13 @@ const zhCN = {
     connected: '已连接',
     pending: '待连接',
     connecting: '连接中',
-    waiting: '等待客户端启动',
     autoDetect: '客户端启动后会自动检测并连接',
     notRunning: '等待客户端启动',
     discovering: '检测中',
     disconnected: '连接已断开',
     error: '连接失败',
     unsupported: '当前平台不支持客户端连接',
-    demoData: '当前首页为演示数据',
     details: '连接详情',
-    demoBadge: '演示',
-    enterDemo: '进入浏览器演示',
     unsupportedIntro: '请在 Windows 电脑上运行助手以连接真实客户端。',
     errors: {
       discovery: '已检测到客户端，但无法读取连接信息。请重启客户端后重试。',
@@ -84,7 +69,6 @@ const zhCN = {
     outcome: '本局开奖',
     legend: '0～4 小 · 5～9 大',
     host: '本地开奖；请以本局事先约定的主持人结果为准',
-    demo: '模拟开奖／不是真实比赛结果',
     count: '本局 {count} 人发红包',
     nobody: '本局无人需要发红包',
     everyone: '本局全部参与者均需发红包',
@@ -186,7 +170,6 @@ const zhCN = {
   },
   history: {
     realHint: '最近 {count} 局 · 点击对局查看结算',
-    demoHint: '当前战绩为演示数据',
     loading: '正在读取战绩...',
     retry: '重新加载',
     connectFirst: '请先连接并登录英雄联盟客户端',
@@ -217,10 +200,8 @@ const zhCN = {
       victory: '胜利',
       defeat: '失败',
     },
-    recentHint: '仅显示最近 {count} 局 · 点击查看结算',
   },
   matchDetail: {
-    demo: '浏览器演示结算',
     loading: '正在读取对局结算...',
     selectMatch: '请先从历史对局选择一局查看结算',
     backHistory: '返回战绩',
@@ -277,7 +258,6 @@ const zhCN = {
     moreTools: '更多工具',
   },
   team: {
-    demo: '浏览器演示名单',
     connectFirst: '请先连接英雄联盟客户端',
     loadingPlayers: '正在读取参与玩家...',
     loginRequired: '请先在客户端完成登录',

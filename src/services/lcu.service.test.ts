@@ -63,11 +63,8 @@ describe('LCU service runtime selection', () => {
     mocks.gameflowSubscribe.mockReset()
   })
 
-  it('keeps browser mode on the explicit Mock adapter', async () => {
-    const status = await startLcuMonitoring()
-
-    expect(status.source).toBe('mock')
-    expect(status.simulated).toBe(true)
+  it('requires the desktop runtime for LCU monitoring', async () => {
+    await expect(startLcuMonitoring()).rejects.toMatchObject({ code: 'lcu.unsupported_platform' })
     expect(mocks.start).not.toHaveBeenCalled()
   })
 
@@ -112,10 +109,10 @@ describe('gameflow service runtime selection', () => {
     mocks.gameflowSubscribe.mockReset()
   })
 
-  it('uses only the explicit browser Mock outside Tauri', async () => {
-    const snapshot = await startGameflowMonitoring()
-    expect(snapshot.source).toBe('mock')
-    expect(snapshot.simulated).toBe(true)
+  it('requires the desktop runtime for gameflow monitoring', async () => {
+    await expect(startGameflowMonitoring()).rejects.toMatchObject({
+      code: 'lcu.unsupported_platform',
+    })
     expect(mocks.gameflowStart).not.toHaveBeenCalled()
   })
 

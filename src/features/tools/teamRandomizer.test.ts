@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { useTeamShuffle } from './useTeamShuffle'
-import { TEAM_DRAW_PLAYERS } from '@/mocks/tools'
+import { TEAM_DRAW_PLAYERS } from '../../../tests/fixtures/team-draw'
 import { formatBeijingTime, splitCustomTeams } from './teamRandomizer'
 
 function seededRandom(seed: number): () => number {

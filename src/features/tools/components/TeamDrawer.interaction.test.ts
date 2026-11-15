@@ -1,10 +1,17 @@
-import { useConnectionStore } from '@/stores/connection'
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createAppI18n } from '@/i18n'
+import { useConnectionStore } from '@/stores/connection'
+import { connectedStatus, homeFlow } from '../../../../tests/fixtures/home-contract'
+import { testParticipants } from '../../../../tests/fixtures/participants-contract'
 import TeamDrawer from './TeamDrawer.vue'
+
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
+vi.mock('@/services/participants.service', () => ({
+  getCustomParticipants: async () => ({ source: 'real', snapshot: testParticipants() }),
+}))
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -17,8 +24,13 @@ describe('team drawer keyboard interaction', () => {
     opener.focus()
     const pinia = createPinia()
     vi.useFakeTimers()
-    useConnectionStore(pinia).connect()
-    vi.advanceTimersByTime(1500)
+    const connection = useConnectionStore(pinia)
+    connection.setLcuStatus(connectedStatus())
+    const flow = homeFlow()
+    flow.session!.lobby!.lobbyId = 'room-1'
+    flow.session!.modeContext!.isCustomGame = true
+    flow.session!.modeContext!.mapId = 12
+    connection.setGameflowSnapshot(flow)
     const wrapper = mount(TeamDrawer, {
       attachTo: document.body,
       props: { open: false },

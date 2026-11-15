@@ -9,8 +9,8 @@ beforeEach(() => {
   adapter.load.mockReset()
 })
 describe('home service', () => {
-  it('returns explicit browser demo data without IPC', async () => {
-    expect((await getHomeSnapshot()).source).toBe('mock')
+  it('requires the desktop runtime', async () => {
+    await expect(getHomeSnapshot()).rejects.toMatchObject({ code: 'lcu.unsupported_platform' })
     expect(adapter.load).not.toHaveBeenCalled()
   })
   it('uses native profile data and preserves errors on desktop', async () => {

@@ -95,3 +95,63 @@ describe('Tauri app store real LCU state', () => {
     expect(app.lcuBridgeError).toBeNull()
   })
 })
+
+describe('gameflow store revision guard', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('rejects older and equal revisions but accepts newer snapshots', () => {
+    const app = useAppStore()
+    const base = {
+      readyCheckStatus: null,
+      revision: 2,
+      updatedAt: 2,
+      connected: true,
+      phase: 'lobby' as const,
+      rawPhase: 'Lobby',
+      transport: 'polling' as const,
+      source: 'real' as const,
+      simulated: false,
+      session: null,
+      code: null,
+      message: null,
+    }
+    app.setGameflowSnapshot(base)
+    app.setGameflowSnapshot({ ...base, revision: 1, phase: 'champ_select' })
+    app.setGameflowSnapshot({ ...base, phase: 'champ_select' })
+    expect(app.gameflowSnapshot?.phase).toBe('lobby')
+    app.setGameflowSnapshot({ ...base, revision: 3, phase: 'champ_select' })
+    expect(app.gameflowSnapshot?.phase).toBe('champ_select')
+  })
+
+  it('keeps connection status and gameflow independent', () => {
+    const app = useAppStore()
+    app.setLcuStatus({
+      status: 'unsupported_platform',
+      code: 'unsupported_platform',
+      message: null,
+      source: 'unavailable',
+      simulated: false,
+      revision: 1,
+      updatedAt: 1,
+      monitoring: false,
+    })
+    app.setGameflowSnapshot({
+      readyCheckStatus: null,
+      revision: 99,
+      updatedAt: 99,
+      connected: false,
+      phase: null,
+      rawPhase: null,
+      transport: 'disconnected',
+      source: 'unavailable',
+      simulated: false,
+      session: null,
+      code: 'unsupported_platform',
+      message: null,
+    })
+    expect(app.connectionPhase).toBe('disconnected')
+    expect(app.isConnected).toBe(false)
+    expect(app.lcuStatus?.status).toBe('unsupported_platform')
+    expect(app.gameflowSnapshot?.phase).toBeNull()
+  })
+})
