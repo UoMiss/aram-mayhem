@@ -249,6 +249,11 @@ pub fn discover() -> Result<Option<LcuClient>, LcuError> {
     }
 }
 
+#[cfg(any(windows, test))]
+fn is_league_client_process(name: &str) -> bool {
+    name.eq_ignore_ascii_case("LeagueClient.exe") || name.eq_ignore_ascii_case("LeagueClientUx.exe")
+}
+
 #[cfg(windows)]
 fn discover_windows() -> Result<Option<LcuClient>, LcuError> {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
@@ -268,9 +273,12 @@ fn discover_windows() -> Result<Option<LcuClient>, LcuError> {
     let mut client_processes = Vec::new();
     for process in system.processes().values() {
         let name = process.name().to_string_lossy().to_ascii_lowercase();
-        if name.starts_with("leagueclientux") {
+        if !is_league_client_process(&name) {
+            continue;
+        }
+        if name == "leagueclientux.exe" {
             ux_processes.push(process);
-        } else if name.starts_with("leagueclient") {
+        } else {
             client_processes.push(process);
         }
     }
@@ -286,10 +294,12 @@ fn discover_windows() -> Result<Option<LcuClient>, LcuError> {
 
     // Lockfile is only a fallback. Shared-read handles the client's active writer;
     // empty/contended content is never treated as a valid credential pair.
-    if let Some(client) = discover_from_lockfiles(&ux_processes)? {
-        return Ok(Some(client));
-    }
-    if let Some(client) = discover_from_lockfiles(&client_processes)? {
+    let processes: Vec<_> = ux_processes
+        .iter()
+        .chain(client_processes.iter())
+        .copied()
+        .collect();
+    if let Some(client) = discover_from_lockfiles(&processes)? {
         return Ok(Some(client));
     }
 
@@ -329,27 +339,38 @@ fn discover_from_args(processes: &[&sysinfo::Process]) -> Result<Option<LcuClien
 
 #[cfg(windows)]
 fn discover_from_lockfiles(processes: &[&sysinfo::Process]) -> Result<Option<LcuClient>, LcuError> {
+    let paths: Vec<_> = processes
+        .iter()
+        .map(|process| (process.pid().as_u32(), install_directory(process)))
+        .collect();
+    discover_from_lockfile_paths(&paths, read_lockfile_shared)
+}
+
+#[cfg(any(windows, test))]
+fn discover_from_lockfile_paths(
+    processes: &[(u32, Option<PathBuf>)],
+    mut read_lockfile: impl FnMut(&std::path::Path) -> Result<String, LcuError>,
+) -> Result<Option<LcuClient>, LcuError> {
     use std::collections::HashSet;
 
     let mut seen_dirs = HashSet::new();
     let mut candidates = Vec::new();
-    for process in processes {
-        let Some(install_dir) = install_directory(process) else {
+    for (pid, install_dir) in processes {
+        let Some(install_dir) = install_dir else {
             continue;
         };
-        // LeagueClient.exe and LeagueClientUx.exe normally share one install directory.
-        // Do not read the same lockfile twice and turn one instance into two candidates.
+        // Read each directory once, then match its owner against all observed client
+        // processes in that directory. Enumeration order must not select the owner.
         if !seen_dirs.insert(install_dir.clone()) {
             continue;
         }
         let lock_path = install_dir.join("lockfile");
-        let raw = match read_lockfile_shared(&lock_path) {
+        let raw = match read_lockfile(&lock_path) {
             Ok(raw) => raw,
             Err(error) => {
                 println!(
                     "[lcu_discovery] source=lockfile pid={} result={}",
-                    process.pid().as_u32(),
-                    error.code
+                    pid, error.code
                 );
                 continue;
             }
@@ -359,23 +380,24 @@ fn discover_from_lockfiles(processes: &[&sysinfo::Process]) -> Result<Option<Lcu
             Err(error) => {
                 println!(
                     "[lcu_discovery] source=lockfile pid={} result={}",
-                    process.pid().as_u32(),
-                    error.code
+                    pid, error.code
                 );
                 continue;
             }
         };
-        if let Err(error) = lockfile.validate_process(process.pid().as_u32()) {
+        let owner = processes.iter().find(|(candidate_pid, candidate_dir)| {
+            *candidate_pid == lockfile.pid && candidate_dir.as_ref() == Some(install_dir)
+        });
+        if owner.is_none() {
             println!(
-                "[lcu_discovery] source=lockfile pid={} result={}",
-                process.pid().as_u32(),
-                error.code
+                "[lcu_discovery] source=lockfile pid={} result=invalid_lockfile",
+                pid
             );
             continue;
         }
         println!(
             "[lcu_discovery] source=lockfile pid={} port_present=true token_present=true",
-            process.pid().as_u32()
+            lockfile.pid
         );
         candidates.push(LcuClient::from_lockfile(lockfile)?);
     }
@@ -511,6 +533,110 @@ mod tests {
         let lockfile = LcuLockfile::parse(&valid_lockfile(54321, "pw")).expect("valid lockfile");
         assert!(lockfile.validate_process(9999).is_err());
         assert!(lockfile.validate_process(4242).is_ok());
+    }
+
+    #[test]
+    fn lockfile_discovery_checks_all_processes_before_deduplicating_directory() {
+        let directory = PathBuf::from("league-install");
+        let processes = [
+            (1111, Some(directory.clone())),
+            (4242, Some(directory.clone())),
+        ];
+        let mut reads = 0;
+        let client = discover_from_lockfile_paths(&processes, |path| {
+            reads += 1;
+            assert_eq!(path, directory.join("lockfile"));
+            Ok(valid_lockfile(54321, "test-token"))
+        })
+        .expect("discovery")
+        .expect("the running UX process owns the lockfile");
+        assert_eq!(client.pid, 4242);
+        assert_eq!(reads, 1);
+    }
+
+    #[test]
+    fn lockfile_discovery_is_independent_of_process_order() {
+        let directory = PathBuf::from("league-install");
+        for pids in [[1111, 4242], [4242, 1111]] {
+            let processes = pids.map(|pid| (pid, Some(directory.clone())));
+            let client = discover_from_lockfile_paths(&processes, |_| {
+                Ok(valid_lockfile(54321, "test-token"))
+            })
+            .expect("discovery")
+            .expect("live owner");
+            assert_eq!(client.pid, 4242);
+        }
+    }
+
+    #[test]
+    fn lockfile_discovery_rejects_stale_and_other_installation_pids() {
+        let processes = [
+            (1111, Some(PathBuf::from("first-install"))),
+            (4242, Some(PathBuf::from("second-install"))),
+        ];
+        for lock_pid in [9999, 4242] {
+            let result = discover_from_lockfile_paths(&processes, |path| {
+                if path.starts_with("first-install") {
+                    Ok(format!("LeagueClientUx:{lock_pid}:54321:test-token:https"))
+                } else {
+                    Err(LcuError::discovery_failed("unreadable test file"))
+                }
+            })
+            .expect("discovery");
+            assert!(result.is_none());
+        }
+    }
+
+    #[test]
+    fn only_exact_league_client_names_are_discovery_candidates() {
+        for name in ["LeagueClient.exe", "LEAGUECLIENTUX.EXE"] {
+            assert!(is_league_client_process(name));
+        }
+        for name in [
+            "LeagueClientUxRender.exe",
+            "LeagueClientUxHelper.exe",
+            "LeagueClientHelper.exe",
+            "LeagueClient.exe.backup",
+            "RiotClientServices.exe",
+        ] {
+            assert!(!is_league_client_process(name), "accepted {name}");
+        }
+    }
+
+    #[test]
+    fn lockfile_discovery_handles_empty_unreadable_and_malformed_files() {
+        let processes = [(4242, Some(PathBuf::from("league-install")))];
+        for raw in ["", "LeagueClientUx:4242:54321:token:http", "invalid"] {
+            assert!(
+                discover_from_lockfile_paths(&processes, |_| Ok(raw.into()))
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        assert!(
+            discover_from_lockfile_paths(&processes, |_| {
+                Err(LcuError::discovery_failed("access denied"))
+            })
+            .unwrap()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn lockfile_discovery_rejects_multiple_valid_client_instances() {
+        let processes = [
+            (4242, Some(PathBuf::from("first-install"))),
+            (4243, Some(PathBuf::from("second-install"))),
+        ];
+        let result = discover_from_lockfile_paths(&processes, |path| {
+            let pid = if path.starts_with("first-install") {
+                4242
+            } else {
+                4243
+            };
+            Ok(format!("LeagueClientUx:{pid}:54321:test-token:https"))
+        });
+        assert_eq!(result.unwrap_err().code, "discovery_failed");
     }
 
     fn args(values: &[&str]) -> Vec<std::ffi::OsString> {
